@@ -35,6 +35,8 @@ import { ChartsRetirementView } from './components/ChartsRetirementView';
 import { GoalFormPayload, GoalModal } from './components/GoalModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ToastContainer } from './components/ToastContainer';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { AiReportModal } from './components/AiReportModal';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
@@ -58,10 +60,11 @@ export default function App() {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsConnectedRef = useRef(false);
 
-  // Modal Criar/Editar Meta
+  // Modal Criar/Editar Meta & Relatório IA
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [preselectSymbol, setPreselectSymbol] = useState<string | null>(null);
+  const [aiReportOpen, setAiReportOpen] = useState(false);
 
   // Modal Confirmação
   const [confirmState, setConfirmState] = useState<{
@@ -1031,6 +1034,8 @@ export default function App() {
         onImportJSON={handleImportJSON}
         onOpenResetModal={handleOpenResetModal}
         onTickerClick={handleTickerClick}
+        onOpenAiReport={() => setAiReportOpen(true)}
+        onNotify={(msg) => showToast(msg, 'success')}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-5">
@@ -1139,6 +1144,14 @@ export default function App() {
         onConfirm={confirmState.onConfirm}
       />
 
+      <AiReportModal
+        isOpen={aiReportOpen}
+        state={state}
+        onClose={() => setAiReportOpen(false)}
+        onNotify={showToast}
+      />
+
+      <OfflineIndicator />
       <ToastContainer toasts={toasts} />
     </div>
   );

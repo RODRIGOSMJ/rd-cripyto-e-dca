@@ -8,13 +8,15 @@ import {
   CloudCheck,
   CloudOff,
   Loader2,
-  LogOut
+  LogOut,
+  Sparkles
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { AppState, CurrencyMode } from '../types';
 import { SUPPORTED_CRYPTOS } from '../constants';
 import { formatBRL, formatMoney, formatUSDT, getEffectiveUsdtBrlRate } from '../utils/calculations';
 import { CryptoLogo } from './CryptoLogo';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export type CloudSyncStatus = 'offline' | 'loading' | 'syncing' | 'saved' | 'error';
 
@@ -34,6 +36,8 @@ interface HeaderProps {
   onImportJSON: (file: File) => void;
   onOpenResetModal: () => void;
   onTickerClick: (symbol: string) => void;
+  onOpenAiReport: () => void;
+  onNotify?: (message: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -51,7 +55,9 @@ export const Header: React.FC<HeaderProps> = ({
   onExportJSON,
   onImportJSON,
   onOpenResetModal,
-  onTickerClick
+  onTickerClick,
+  onOpenAiReport,
+  onNotify
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cloudMenuOpen, setCloudMenuOpen] = useState(false);
@@ -167,24 +173,38 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </div>
 
-          {/* Firebase Cloud Sync / Login Google */}
+          {/* Botão Baixar App (PWA para Android, iOS, Windows, Mac e Linux) */}
+          <PWAInstallButton onInstalledToast={onNotify} />
+
+          {/* Firebase Cloud Sync / Login Google (somente ícone de nuvem) */}
           <div className="relative" ref={cloudDropdownRef}>
             {!user ? (
               <button
                 type="button"
                 disabled={!authReady}
                 onClick={onSignInGoogle}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-xs font-bold text-sky-300 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
+                title="Salvar dados na nuvem (Firebase)"
+                aria-label="Salvar dados na nuvem (Firebase)"
+                className="p-2 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 transition-colors shrink-0 disabled:opacity-50"
               >
                 <Cloud className="w-3.5 h-3.5" />
-                <span>Salvar no Firebase</span>
               </button>
             ) : (
               <>
                 <button
                   type="button"
                   onClick={() => setCloudMenuOpen((prev) => !prev)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                  title={
+                    cloudStatus === 'syncing'
+                      ? `Salvando no Firebase (${firstName})...`
+                      : cloudStatus === 'loading'
+                        ? `Carregando do Firebase (${firstName})...`
+                        : cloudStatus === 'error'
+                          ? `Erro na sincronização Firebase (${firstName})`
+                          : `Firebase conectado (${firstName}) · Salvamento automático`
+                  }
+                  aria-label="Status da nuvem Firebase"
+                  className={`p-2 rounded-lg border transition-colors shrink-0 ${
                     cloudStatus === 'error'
                       ? 'bg-rose-950/60 border-rose-500/50 text-rose-300'
                       : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300'
@@ -197,15 +217,6 @@ export const Header: React.FC<HeaderProps> = ({
                   ) : (
                     <CloudCheck className="w-3.5 h-3.5" />
                   )}
-                  <span className="hidden sm:inline">
-                    {cloudStatus === 'syncing'
-                      ? 'Salvando...'
-                      : cloudStatus === 'loading'
-                        ? 'Carregando...'
-                        : cloudStatus === 'error'
-                          ? 'Erro nuvem'
-                          : firstName}
-                  </span>
                 </button>
 
                 {cloudMenuOpen && (
@@ -273,7 +284,19 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-60 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1.5 z-50 text-xs">
+              <div className="absolute right-0 mt-2 w-64 rounded-xl bg-[#140b0e] border border-red-950/80 shadow-2xl py-1.5 z-50 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenAiReport();
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-red-950/40 text-white font-bold flex items-center gap-2.5 whitespace-nowrap"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#ff4d5a] shrink-0" />
+                  <span>Relatório Completo IA + PDF</span>
+                </button>
+                <div className="border-t border-slate-800 my-1" />
                 <button
                   type="button"
                   onClick={() => {

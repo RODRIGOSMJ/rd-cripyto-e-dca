@@ -25,16 +25,28 @@ interface ChartsRetirementViewProps {
 }
 
 interface ChartCanvasProps {
+  chartKey: string;
   config: ChartConfiguration;
 }
 
-const ChartCanvas: React.FC<ChartCanvasProps> = ({ config }) => {
+const ChartCanvas: React.FC<ChartCanvasProps> = ({ chartKey, config }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const instanceRef = useRef<Chart | null>(null);
+  const keyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Atualiza a instância existente sem destruir/reanimar a cada tick ao vivo (evita bug visual)
+    if (instanceRef.current && keyRef.current === chartKey) {
+      instanceRef.current.data = config.data;
+      if (config.options) {
+        instanceRef.current.options = config.options;
+      }
+      instanceRef.current.update('none');
+      return;
+    }
 
     if (instanceRef.current) {
       instanceRef.current.destroy();
@@ -42,14 +54,18 @@ const ChartCanvas: React.FC<ChartCanvasProps> = ({ config }) => {
     }
 
     instanceRef.current = new Chart(canvas, config);
+    keyRef.current = chartKey;
+  }, [chartKey, config]);
 
+  useEffect(() => {
     return () => {
       if (instanceRef.current) {
         instanceRef.current.destroy();
         instanceRef.current = null;
       }
+      keyRef.current = null;
     };
-  }, [config]);
+  }, []);
 
   return <canvas ref={canvasRef} />;
 };
@@ -95,6 +111,18 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
   const goalDisplayVal = Number(convertFromUSD(retirementGoalUSD, state.currency, fxRate).toFixed(2));
 
   const labels = m.schedule.map((s) => `M${s.month}`);
+  const liveDisplayPrice = Number((m.currentPriceUSD * multCurr).toFixed(4));
+  const avgPricePoints = m.schedule
+    .flatMap((s) => [
+      s.cumAvgPriceUSD > 0 ? Number((s.cumAvgPriceUSD * multCurr).toFixed(4)) : null,
+      s.pricePaidUSD > 0 ? Number((s.pricePaidUSD * multCurr).toFixed(4)) : null
+    ])
+    .filter((v): v is number => v !== null && v > 0);
+  const allPricePoints = liveDisplayPrice > 0 ? [...avgPricePoints, liveDisplayPrice] : avgPricePoints;
+  const minPricePoint = allPricePoints.length > 0 ? Math.min(...allPricePoints) : 0;
+  const maxPricePoint = allPricePoints.length > 0 ? Math.max(...allPricePoints) : 1;
+  const ySuggestedMin = minPricePoint > 0 ? Number((minPricePoint * 0.85).toFixed(4)) : 0;
+  const ySuggestedMax = maxPricePoint > 0 ? Number((maxPricePoint * 1.15).toFixed(4)) : 1;
 
   const avgPriceConfig: ChartConfiguration<'line'> = {
     type: 'line',
@@ -108,6 +136,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
           backgroundColor: 'rgba(16, 185, 129, 0.15)',
           borderWidth: 2.5,
           tension: 0.3,
+          pointRadius: 3,
           fill: true,
           spanGaps: true
         },
@@ -117,14 +146,15 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
           borderColor: '#38bdf8',
           borderDash: [4, 4],
           borderWidth: 2,
+          pointRadius: 3,
           spanGaps: true
         },
         {
           label: 'Cotação Atual',
-          data: m.schedule.map(() => Number((m.currentPriceUSD * multCurr).toFixed(4))),
+          data: m.schedule.map(() => liveDisplayPrice),
           borderColor: '#f59e0b',
           borderDash: [6, 6],
-          borderWidth: 1.5,
+          borderWidth: 1.8,
           pointRadius: 0
         }
       ]
@@ -132,10 +162,16 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
       scales: {
         x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } },
-        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } }
+        y: {
+          suggestedMin: ySuggestedMin,
+          suggestedMax: ySuggestedMax,
+          ticks: { color: '#94a3b8', font: { size: 10 } },
+          grid: { color: 'rgba(51,65,85,0.3)' }
+        }
       }
     }
   };
@@ -159,7 +195,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
           data: m.schedule.map((s) => Number(s.plannedCumQty.toFixed(2))),
           borderColor: '#10b981',
           borderWidth: 2,
-          pointRadius: 2,
+          pointRadius: 2.5,
           order: 1
         }
       ]
@@ -167,13 +203,26 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
       scales: {
         x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } },
-        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } }
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#94a3b8', font: { size: 10 } },
+          grid: { color: 'rgba(51,65,85,0.3)' }
+        }
       }
     }
   };
+
+  const hasCurrentHoldings = totalCurrentPortfolioUSD > 0.0001;
+  const donutRawValues = summaries.map((s) =>
+    hasCurrentHoldings
+      ? Number((s.metrics.totalPositionValueUSD * multCurr).toFixed(2))
+      : Number((s.goal.targetAmount * s.metrics.currentPriceUSD * multCurr).toFixed(2))
+  );
+  const donutSum = donutRawValues.reduce((acc, v) => acc + v, 0);
 
   const donutConfig: ChartConfiguration<'doughnut'> = {
     type: 'doughnut',
@@ -181,9 +230,9 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
       labels: summaries.map((s) => s.goal.symbol),
       datasets: [
         {
-          data: summaries.map((s) => Math.max(0.01, Number((s.metrics.totalPositionValueUSD * multCurr).toFixed(2)))),
+          data: donutSum > 0 ? donutRawValues : summaries.map(() => 1),
           backgroundColor: summaries.map((s) => s.goal.color || '#10b981'),
-          borderColor: '#0f172a',
+          borderColor: '#120b0e',
           borderWidth: 3
         }
       ]
@@ -191,15 +240,18 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '65%',
+      animation: false,
+      cutout: '64%',
       plugins: {
         legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11 } } },
         tooltip: {
           callbacks: {
             label: (ctx) => {
+              const val = Number(ctx.parsed) || 0;
+              const pct = donutSum > 0 ? ((val / donutSum) * 100).toFixed(1) : '0.0';
               const prefix = isBRL ? 'R$ ' : '$ ';
               const suffix = isBRL ? '' : ' USDT';
-              return ` ${ctx.label}: ${prefix}${Number(ctx.parsed).toFixed(2)}${suffix}`;
+              return ` ${ctx.label}: ${prefix}${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix} (${pct}%)`;
             }
           }
         }
@@ -347,10 +399,14 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
                 Preço Médio Pago ({goal.symbol} em {currSymbol})
               </span>
             </h3>
-            <p className="text-xs text-slate-400">Preço médio acumulado mês a mês vs cotação atual</p>
+            <p className="text-xs text-slate-400">
+              {m.totalBoughtDCA > 0
+                ? 'Preço médio acumulado mês a mês vs cotação atual'
+                : 'Lance compras no DCA para comparar seu preço médio com a cotação'}
+            </p>
           </div>
           <div className="relative h-64 w-full">
-            <ChartCanvas config={avgPriceConfig} />
+            <ChartCanvas chartKey="avg-price" config={avgPriceConfig} />
           </div>
         </div>
 
@@ -365,19 +421,23 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
             </p>
           </div>
           <div className="relative h-64 w-full">
-            <ChartCanvas config={accumulationConfig as ChartConfiguration} />
+            <ChartCanvas chartKey="accumulation" config={accumulationConfig as ChartConfiguration} />
           </div>
         </div>
 
         <div className="rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5">
           <div className="mb-3">
-            <h3 className="text-sm font-bold text-white">Distribuição Atual da Carteira</h3>
+            <h3 className="text-sm font-bold text-white">
+              {hasCurrentHoldings ? 'Distribuição Atual da Carteira' : 'Distribuição das Metas Planejadas'}
+            </h3>
             <p className="text-xs text-slate-400">
-              Proporção do patrimônio atual ({formatMoney(totalCurrentPortfolioUSD, state.currency, fxRate, 2)})
+              {hasCurrentHoldings
+                ? `Proporção do patrimônio atual (${formatMoney(totalCurrentPortfolioUSD, state.currency, fxRate, 2)})`
+                : 'Proporção estimada por custo total das metas (sem saldo comprado)'}
             </p>
           </div>
           <div className="relative h-64 w-full">
-            <ChartCanvas config={donutConfig as ChartConfiguration} />
+            <ChartCanvas chartKey="portfolio-donut" config={donutConfig as ChartConfiguration} />
           </div>
         </div>
       </div>

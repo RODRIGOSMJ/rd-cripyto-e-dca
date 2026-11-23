@@ -1,0 +1,189 @@
+{
+  "entities": {
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "Configurações globais da carteira DCA, alvo de aposentadoria, câmbio e conversor de um usuário.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID do usuário autenticado dono deste perfil.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Modo de exibição monetária selecionado.",
+          "enum": ["USDT", "HYBRID", "BRL"],
+          "maxLength": 10
+        },
+        "selectedGoalId": {
+          "type": "string",
+          "description": "ID da meta selecionada atualmente no planejador.",
+          "maxLength": 128
+        },
+        "manualFxOverride": {
+          "type": "boolean",
+          "description": "Indica se o usuário travou manualmente a cotação USDT/BRL."
+        },
+        "manualUsdtBrlRate": {
+          "type": "number",
+          "description": "Cotação manual USDT/BRL definida pelo usuário."
+        },
+        "retirementGoalUSD": {
+          "type": "number",
+          "description": "Patrimônio alvo global para a aposentadoria em USD/USDT."
+        },
+        "cycleMultiplier": {
+          "type": "number",
+          "description": "Multiplicador de ciclo no simulador de aposentadoria (1 a 20)."
+        },
+        "converter": {
+          "type": "object",
+          "description": "Parâmetros salvos do conversor USDT/BRL."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de criação do documento (request.time)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp da última atualização (request.time)."
+        }
+      },
+      "required": [
+        "ownerId",
+        "currency",
+        "selectedGoalId",
+        "manualFxOverride",
+        "manualUsdtBrlRate",
+        "retirementGoalUSD",
+        "cycleMultiplier",
+        "converter",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CryptoGoal": {
+      "title": "CryptoGoal",
+      "description": "Meta de acumulação DCA de uma criptomoeda específica com histórico mensal de compras.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identificador único da meta.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID do usuário dono da meta.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Ticker da criptomoeda (ex: POL, BNB, DOGE).",
+          "minLength": 1,
+          "maxLength": 20,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome legível da criptomoeda.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "binancePair": {
+          "type": "string",
+          "description": "Par de negociação na Binance.",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "fallbackPair": {
+          "type": "string",
+          "description": "Par alternativo na Binance (string vazia se não houver).",
+          "maxLength": 30
+        },
+        "coingeckoId": {
+          "type": "string",
+          "description": "Identificador da moeda na API CoinGecko.",
+          "maxLength": 80
+        },
+        "color": {
+          "type": "string",
+          "description": "Cor hexadecimal da moeda na interface.",
+          "maxLength": 20,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "initialBalance": {
+          "type": "number",
+          "description": "Saldo inicial já possuído pelo usuário."
+        },
+        "targetAmount": {
+          "type": "number",
+          "description": "Quantidade final desejada da criptomoeda."
+        },
+        "monthsCount": {
+          "type": "integer",
+          "description": "Prazo em meses para acumulação (1 a 120)."
+        },
+        "retirementTargetPriceUSD": {
+          "type": "number",
+          "description": "Preço-alvo de venda para a aposentadoria em USDT."
+        },
+        "customPriceUSD": {
+          "type": "number",
+          "description": "Preço manual em USDT para criptos personalizadas (0 quando usa cotação ao vivo)."
+        },
+        "monthlyRecords": {
+          "type": "array",
+          "description": "Lista limitada (1 a 120 itens) dos registros mensais de compra DCA."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de criação da meta (request.time)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp da última atualização (request.time)."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "symbol",
+        "name",
+        "binancePair",
+        "fallbackPair",
+        "coingeckoId",
+        "color",
+        "initialBalance",
+        "targetAmount",
+        "monthsCount",
+        "retirementTargetPriceUSD",
+        "customPriceUSD",
+        "monthlyRecords",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "Configurações globais e alvo de aposentadoria privados de cada usuário."
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/CryptoGoal" },
+      "description": "Subcoleção privada das metas cripto e registros mensais DCA de cada usuário."
+    }
+  }
+}

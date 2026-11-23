@@ -1,0 +1,6 @@
+{
+  "name": "RG Crypto DCA & Aposentadoria",
+  "description": "Planejador de Ciclos, Preço Médio, Conversor USDT/BRL e Simulador de Aposentadoria Cripto.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

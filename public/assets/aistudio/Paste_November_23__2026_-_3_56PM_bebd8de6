@@ -1,0 +1,2634 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RG Crypto DCA &amp; Aposentadoria</title>
+
+  <!-- Fontes Modernas: Inter + JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Chart.js UMD com carregamento seguro -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.25); }
+    }
+    .live-dot {
+      animation: pulse-live 2s infinite ease-in-out;
+    }
+    /* Custom scrollbar discreta */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- ======================================================================= -->
+  <!-- CABEÇALHO PRINCIPAL & BARRA DE CONTROLES                                -->
+  <!-- ======================================================================= -->
+  <header class="sticky top-0 z-40 bg-[#0b0f19]/95 backdrop-blur-md border-b border-slate-800/90">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <!-- Marca -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-slate-950 font-extrabold text-lg">
+          RG
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white leading-tight">
+            RG Crypto <span class="text-emerald-400">DCA &amp; Aposentadoria</span>
+          </h1>
+          <p class="text-[11px] text-slate-400">Planejador de Ciclos, Preço Médio &amp; Câmbio USDT/BRL</p>
+        </div>
+      </div>
+
+      <!-- Status da API + Seletor de Moeda + Menu Dados -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <!-- Badge de Status das Cotações -->
+        <div id="api-status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+          <span class="relative flex h-2 w-2">
+            <span id="api-status-dot" class="live-dot relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span id="api-status-text" class="text-slate-300 font-medium">Sincronizando...</span>
+          <span id="usdt-brl-rate" class="hidden md:inline text-emerald-400 font-mono font-semibold border-l border-slate-800 pl-2">1 USDT = R$ 5,8500</span>
+        </div>
+
+        <!-- Seletor 3 Modos: $ USDT (Padrão) | USDT + R$ | R$ BRL -->
+        <div class="inline-flex rounded-xl bg-slate-900 p-1 border border-slate-800" role="group" aria-label="Modo de exibição monetária">
+          <button type="button" id="btn-currency-USDT" onclick="window.setCurrency('USDT')"
+            class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950 shadow">
+            $ USDT
+          </button>
+          <button type="button" id="btn-currency-HYBRID" onclick="window.setCurrency('HYBRID')"
+            class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white">
+            USDT + R$
+          </button>
+          <button type="button" id="btn-currency-BRL" onclick="window.setCurrency('BRL')"
+            class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white">
+            R$ BRL
+          </button>
+        </div>
+
+        <!-- Botão Atualizar Cotações -->
+        <button type="button" onclick="window.fetchAllPrices(true)" title="Atualizar cotações agora"
+          class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-emerald-400 transition-colors">
+          <svg id="refresh-icon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+
+        <!-- Menu Backup / CSV / Reset -->
+        <div class="relative">
+          <button type="button" id="btn-data-menu" onclick="window.toggleDataMenu()"
+            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors">
+            <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span class="hidden sm:inline">Dados</span>
+          </button>
+
+          <div id="data-dropdown" class="hidden absolute right-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl py-2 z-50 text-xs">
+            <button type="button" onclick="window.exportCSV(); window.toggleDataMenu();"
+              class="w-full text-left px-4 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2">
+              <span class="text-emerald-400 font-bold">CSV</span> Exportar Planilha Excel
+            </button>
+            <button type="button" onclick="window.exportJSON(); window.toggleDataMenu();"
+              class="w-full text-left px-4 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2">
+              <span class="text-sky-400 font-bold">JSON</span> Exportar Backup Completo
+            </button>
+            <label class="w-full text-left px-4 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
+              <span class="text-amber-400 font-bold">IMP</span> Importar Backup JSON
+              <input type="file" accept=".json" onchange="window.importJSON(event); window.toggleDataMenu();" class="hidden" />
+            </label>
+            <div class="border-t border-slate-800 my-1"></div>
+            <button type="button" onclick="window.openResetModal(); window.toggleDataMenu();"
+              class="w-full text-left px-4 py-2.5 hover:bg-rose-950/60 text-rose-400 flex items-center gap-2">
+              <span>↺</span> Restaurar Exemplo Padrão
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra Ticker de Cotações Ao Vivo -->
+    <div class="bg-slate-950/80 border-t border-slate-800/60 py-2 px-4 sm:px-6 overflow-x-auto">
+      <div id="live-ticker-bar" class="max-w-7xl mx-auto flex items-center gap-2.5 text-xs whitespace-nowrap">
+        <!-- Preenchido via JS -->
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================================================================= -->
+  <!-- CONTEÚDO PRINCIPAL                                                      -->
+  <!-- ======================================================================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- 1. CARDS DE RESUMO GLOBAL DA CARTEIRA (SOMATÓRIO DE TODAS AS CRIPTOS) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Card 1: Patrimônio Atual Total -->
+      <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Patrimônio Acumulado</span>
+          <span class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </span>
+        </div>
+        <div id="kpi-total-value" class="text-2xl sm:text-3xl font-extrabold text-white tabular-nums tracking-tight">$0.00 USDT</div>
+        <div id="kpi-total-sub" class="text-xs text-slate-400 mt-1.5 tabular-nums">Saldo inicial + compras DCA</div>
+      </div>
+
+      <!-- Card 2: Total Investido (Custo DCA) -->
+      <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Investido (DCA)</span>
+          <span class="p-2 rounded-xl bg-sky-500/10 text-sky-400">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </span>
+        </div>
+        <div id="kpi-total-invested" class="text-2xl sm:text-3xl font-extrabold text-white tabular-nums tracking-tight">$0.00 USDT</div>
+        <div id="kpi-remaining-cost" class="text-xs text-slate-400 mt-1.5 tabular-nums">Falta investir: --</div>
+      </div>
+
+      <!-- Card 3: Resultado Geral (Lucro / Prejuízo) -->
+      <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Resultado das Compras</span>
+          <span class="p-2 rounded-xl bg-violet-500/10 text-violet-400">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </span>
+        </div>
+        <div id="kpi-pnl-value" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 tabular-nums tracking-tight">+$0.00 USDT</div>
+        <div id="kpi-pnl-pct" class="text-xs text-slate-400 mt-1.5 tabular-nums">Baseado no preço médio pago</div>
+      </div>
+
+      <!-- Card 4: Alvo Aposentadoria & Progresso Geral -->
+      <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Alvo Aposentadoria</span>
+          <span class="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+          </span>
+        </div>
+        <div id="kpi-retirement-projected" class="text-2xl sm:text-3xl font-extrabold text-amber-400 tabular-nums tracking-tight">$0.00 USDT</div>
+        <div class="mt-2.5">
+          <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+            <span>Progresso das Metas</span>
+            <span id="kpi-overall-progress-text" class="font-bold text-slate-200 tabular-nums">0%</span>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div id="kpi-overall-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. NAVEGAÇÃO PRINCIPAL: PLANEJADOR DCA, CONVERSOR USDT/BRL, GRÁFICOS & SIMULADOR -->
+    <section class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      <div id="main-nav-tabs" class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+        <!-- Renderizado dinamicamente -->
+      </div>
+
+      <button type="button" onclick="window.openGoalModal()"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all shrink-0">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>Nova Meta Cripto</span>
+      </button>
+    </section>
+
+    <!-- 3. ÁREA DE CONTEÚDO DINÂMICO -->
+    <div id="main-view-container" class="space-y-6">
+      <!-- Renderizado via JavaScript -->
+    </div>
+  </main>
+
+  <!-- ======================================================================= -->
+  <!-- MODAL: ADICIONAR / EDITAR META DE CRIPTOMOEDA                           -->
+  <!-- ======================================================================= -->
+  <div id="goal-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 id="goal-modal-title" class="text-lg font-extrabold text-white">Nova Meta de Acumulação</h3>
+        <button type="button" onclick="window.closeGoalModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form id="goal-form" onsubmit="window.saveGoalForm(event)" class="space-y-4">
+        <input type="hidden" id="form-goal-id" value="" />
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">Criptomoeda</label>
+          <select id="form-asset-select" onchange="window.handleAssetSelectChange()"
+            class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+          </select>
+        </div>
+
+        <!-- Campos extras para cripto personalizada -->
+        <div id="custom-asset-fields" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Ticker (Ex: ADA)</label>
+            <input type="text" id="form-custom-symbol" placeholder="ADA"
+              class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white uppercase font-mono focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Nome</label>
+            <input type="text" id="form-custom-name" placeholder="Cardano"
+              class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Preço Manual (USDT)</label>
+            <input type="number" step="any" min="0" id="form-custom-price" placeholder="0.85"
+              class="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Saldo que Já Tenho</label>
+            <input type="number" step="any" min="0" id="form-initial-balance" required placeholder="Ex: 200"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Meta Final de Moedas</label>
+            <input type="number" step="any" min="0.000001" id="form-target-amount" required placeholder="Ex: 10000"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Prazo de Acumulação (Meses)</label>
+            <input type="number" min="1" max="120" id="form-months" required placeholder="Ex: 12"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+              Preço-Alvo Aposentadoria (<span id="form-currency-label">USDT</span>)
+            </label>
+            <input type="number" step="any" min="0" id="form-retirement-price" required placeholder="Ex: 5.00"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+
+        <!-- Prévia em tempo real dentro do modal -->
+        <div id="modal-live-preview" class="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-xs text-slate-300 space-y-1">
+          <!-- Atualizado via JS -->
+        </div>
+
+        <div class="flex justify-end gap-2.5 pt-2">
+          <button type="button" onclick="window.closeGoalModal()"
+            class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit"
+            class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-xs font-extrabold text-slate-950 shadow-lg shadow-emerald-500/20 transition-all">
+            Salvar Meta
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MODAL: CONFIRMAÇÃO SEGURA (SEM alert/confirm NATIVOS)                    -->
+  <!-- ======================================================================= -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <h3 id="confirm-modal-title" class="text-base font-extrabold text-white">Confirmar Ação</h3>
+      <p id="confirm-modal-message" class="text-xs sm:text-sm text-slate-300 leading-relaxed"></p>
+      <div class="flex justify-end gap-2.5 pt-2">
+        <button type="button" onclick="window.closeConfirmModal()"
+          class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300">
+          Cancelar
+        </button>
+        <button type="button" id="confirm-modal-btn"
+          class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-extrabold text-white">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- CONTAINER DE NOTIFICAÇÕES TOAST                                         -->
+  <!-- ======================================================================= -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"></div>
+
+  <!-- ======================================================================= -->
+  <!-- LÓGICA COMPLETA E BLINDADA DA APLICAÇÃO                                 -->
+  <!-- ======================================================================= -->
+  <script>
+    (function () {
+      'use strict';
+
+      // =====================================================================
+      // 1. STORAGE SEGURO (PROTEÇÃO CONTRA SANDBOX / IFRAME SECURITYERROR)
+      // =====================================================================
+      const memoryStorage = {};
+      const SafeStorage = {
+        getItem(key) {
+          try {
+            return window.localStorage.getItem(key);
+          } catch (e) {
+            return Object.prototype.hasOwnProperty.call(memoryStorage, key) ? memoryStorage[key] : null;
+          }
+        },
+        setItem(key, value) {
+          memoryStorage[key] = String(value);
+          try {
+            window.localStorage.setItem(key, String(value));
+          } catch (e) {
+            // Silenciosamente usa memória caso localStorage esteja bloqueado no iframe
+          }
+        },
+        removeItem(key) {
+          delete memoryStorage[key];
+          try {
+            window.localStorage.removeItem(key);
+          } catch (e) {
+            // Ignora erro de sandbox
+          }
+        }
+      };
+
+      // =====================================================================
+      // 2. CATÁLOGO DE CRIPTOS & PREÇOS INICIAIS DE FALLBACK IMEDIATO
+      // =====================================================================
+      const STORAGE_KEY = 'rg_crypto_dca_retirement_v3';
+
+      const SUPPORTED_CRYPTOS = [
+        { symbol: 'POL',  name: 'Polygon (POL)', binancePair: 'POLUSDT',  fallbackPair: 'MATICUSDT', coingeckoId: 'polygon-ecosystem-token', color: '#8b5cf6', fallbackUSD: 0.42 },
+        { symbol: 'BNB',  name: 'BNB',           binancePair: 'BNBUSDT',  fallbackPair: null,        coingeckoId: 'binancecoin',             color: '#f59e0b', fallbackUSD: 645.00 },
+        { symbol: 'BTC',  name: 'Bitcoin',       binancePair: 'BTCUSDT',  fallbackPair: null,        coingeckoId: 'bitcoin',                 color: '#f97316', fallbackUSD: 96500.00 },
+        { symbol: 'ETH',  name: 'Ethereum',      binancePair: 'ETHUSDT',  fallbackPair: null,        coingeckoId: 'ethereum',                color: '#3b82f6', fallbackUSD: 3420.00 },
+        { symbol: 'SOL',  name: 'Solana',        binancePair: 'SOLUSDT',  fallbackPair: null,        coingeckoId: 'solana',                  color: '#14b8a6', fallbackUSD: 235.00 },
+        { symbol: 'XRP',  name: 'Ripple (XRP)',  binancePair: 'XRPUSDT',  fallbackPair: null,        coingeckoId: 'ripple',                  color: '#38bdf8', fallbackUSD: 1.45 },
+        { symbol: 'DOGE', name: 'Dogecoin',      binancePair: 'DOGEUSDT', fallbackPair: null,        coingeckoId: 'dogecoin',                color: '#eab308', fallbackUSD: 0.38 },
+        { symbol: 'ALGO', name: 'Algorand',      binancePair: 'ALGOUSDT', fallbackPair: null,        coingeckoId: 'algorand',                color: '#10b981', fallbackUSD: 0.32 }
+      ];
+
+      function buildInitialPricesMap() {
+        const map = {};
+        for (const c of SUPPORTED_CRYPTOS) {
+          map[c.symbol] = c.fallbackUSD;
+        }
+        return map;
+      }
+
+      // =====================================================================
+      // 3. ESTADO GLOBAL DA APLICAÇÃO
+      // =====================================================================
+      let appState = {
+        currency: 'USDT',         // 'USDT' | 'HYBRID' | 'BRL'
+        mainTab: 'DCA',           // 'DCA' | 'CONVERTER' | 'CHARTS'
+        selectedGoalId: 'POL',    // ID da meta selecionada na aba DCA
+        usdtBrlRate: 5.85,        // Cotação USDT/BRL
+        manualFxOverride: false,
+        manualUsdtBrlRate: 5.85,
+        cycleMultiplier: 1.0,     // Multiplicador do simulador de ciclo (1x a 20x)
+        pricesUSD: buildInitialPricesMap(),
+        lastPriceUpdate: null,
+        priceSource: 'Referência Inicial',
+        isLiveConnected: false,
+        converter: {
+          direction: 'BRL_TO_USDT',
+          amountBRL: 1000,
+          amountUSDT: 200,
+          exchangeFeePct: 0.10,
+          pixSpreadPct: 0.00,
+          networkFeeUSDT: 0.00,
+          targetSymbol: 'POL',
+          targetGoalId: 'POL',
+          targetMonthIndex: 0
+        },
+        goals: []
+      };
+
+      const chartInstances = {
+        avgPriceChart: null,
+        accumulationChart: null,
+        portfolioDonutChart: null
+      };
+
+      function getEffectiveUsdtBrlRate() {
+        if (appState.manualFxOverride && Number(appState.manualUsdtBrlRate) > 0) {
+          return Number(appState.manualUsdtBrlRate);
+        }
+        return Number(appState.usdtBrlRate) > 0 ? Number(appState.usdtBrlRate) : 5.85;
+      }
+
+      function getFutureMonthLabel(offsetMonths) {
+        const date = new Date();
+        date.setMonth(date.getMonth() + offsetMonths);
+        const monthsPt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        return `${monthsPt[date.getMonth()]}/${String(date.getFullYear()).slice(-2)}`;
+      }
+
+      function getDefaultGoals() {
+        const fx = getEffectiveUsdtBrlRate();
+        return [
+          {
+            id: 'POL',
+            symbol: 'POL',
+            name: 'Polygon (POL)',
+            binancePair: 'POLUSDT',
+            fallbackPair: 'MATICUSDT',
+            coingeckoId: 'polygon-ecosystem-token',
+            color: '#8b5cf6',
+            initialBalance: 200,
+            targetAmount: 10000,
+            monthsCount: 12,
+            retirementTargetPriceUSD: 5.00,
+            monthlyRecords: Array.from({ length: 12 }, (_, idx) => ({
+              month: idx + 1,
+              label: getFutureMonthLabel(idx),
+              boughtQty: 0,
+              pricePaidUSD: 0,
+              fxRateBRL: fx
+            }))
+          },
+          {
+            id: 'BNB',
+            symbol: 'BNB',
+            name: 'BNB',
+            binancePair: 'BNBUSDT',
+            fallbackPair: null,
+            coingeckoId: 'binancecoin',
+            color: '#f59e0b',
+            initialBalance: 1.5,
+            targetAmount: 15,
+            monthsCount: 12,
+            retirementTargetPriceUSD: 1800.00,
+            monthlyRecords: Array.from({ length: 12 }, (_, idx) => ({
+              month: idx + 1,
+              label: getFutureMonthLabel(idx),
+              boughtQty: 0,
+              pricePaidUSD: 0,
+              fxRateBRL: fx
+            }))
+          }
+        ];
+      }
+
+      function loadState() {
+        try {
+          const raw = SafeStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && Array.isArray(parsed.goals) && parsed.goals.length > 0) {
+              appState.currency = ['USDT', 'HYBRID', 'BRL'].includes(parsed.currency) ? parsed.currency : 'USDT';
+              appState.mainTab = ['DCA', 'CONVERTER', 'CHARTS'].includes(parsed.mainTab) ? parsed.mainTab : 'DCA';
+              appState.usdtBrlRate = Number(parsed.usdtBrlRate) > 0 ? Number(parsed.usdtBrlRate) : 5.85;
+              appState.manualFxOverride = Boolean(parsed.manualFxOverride);
+              appState.manualUsdtBrlRate = Number(parsed.manualUsdtBrlRate) > 0 ? Number(parsed.manualUsdtBrlRate) : appState.usdtBrlRate;
+              appState.cycleMultiplier = Number(parsed.cycleMultiplier) >= 1 ? Number(parsed.cycleMultiplier) : 1.0;
+
+              if (parsed.pricesUSD && typeof parsed.pricesUSD === 'object') {
+                appState.pricesUSD = { ...buildInitialPricesMap(), ...parsed.pricesUSD };
+              }
+              if (parsed.converter && typeof parsed.converter === 'object') {
+                appState.converter = { ...appState.converter, ...parsed.converter };
+              }
+
+              appState.goals = parsed.goals.map(g => {
+                const mCount = Math.min(120, Math.max(1, parseInt(g.monthsCount, 10) || 12));
+                const recs = Array.isArray(g.monthlyRecords) ? g.monthlyRecords : [];
+                const normalizedRecs = Array.from({ length: mCount }, (_, idx) => {
+                  const r = recs[idx] || {};
+                  return {
+                    month: idx + 1,
+                    label: r.label || getFutureMonthLabel(idx),
+                    boughtQty: Number(r.boughtQty) || 0,
+                    pricePaidUSD: Number(r.pricePaidUSD) || 0,
+                    fxRateBRL: Number(r.fxRateBRL) > 0 ? Number(r.fxRateBRL) : appState.usdtBrlRate
+                  };
+                });
+
+                return {
+                  id: String(g.id || `${g.symbol}_${Date.now()}`),
+                  symbol: String(g.symbol || 'POL').toUpperCase(),
+                  name: String(g.name || g.symbol || 'Cripto'),
+                  binancePair: String(g.binancePair || `${g.symbol}USDT`),
+                  fallbackPair: g.fallbackPair || null,
+                  coingeckoId: g.coingeckoId || String(g.symbol || '').toLowerCase(),
+                  color: g.color || '#10b981',
+                  initialBalance: Math.max(0, Number(g.initialBalance) || 0),
+                  targetAmount: Math.max(0.000001, Number(g.targetAmount) || 100),
+                  monthsCount: mCount,
+                  retirementTargetPriceUSD: Math.max(0, Number(g.retirementTargetPriceUSD) || 0),
+                  monthlyRecords: normalizedRecs
+                };
+              });
+
+              appState.selectedGoalId = appState.goals.some(g => g.id === parsed.selectedGoalId)
+                ? parsed.selectedGoalId
+                : appState.goals[0].id;
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Resetando estado corrompido para padrão seguro:', err);
+        }
+
+        appState.goals = getDefaultGoals();
+        appState.selectedGoalId = appState.goals[0].id;
+        saveState();
+      }
+
+      function saveState() {
+        try {
+          const payload = {
+            currency: appState.currency,
+            mainTab: appState.mainTab,
+            selectedGoalId: appState.selectedGoalId,
+            usdtBrlRate: appState.usdtBrlRate,
+            manualFxOverride: appState.manualFxOverride,
+            manualUsdtBrlRate: appState.manualUsdtBrlRate,
+            cycleMultiplier: appState.cycleMultiplier,
+            pricesUSD: appState.pricesUSD,
+            converter: appState.converter,
+            goals: appState.goals
+          };
+          SafeStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        } catch (err) {
+          console.warn('Aviso ao persistir estado:', err);
+        }
+      }
+
+      // =====================================================================
+      // 4. SINCRONIZAÇÃO DE COTAÇÕES COM MULTI-FALLBACK & ABORT TIMEOUT
+      // =====================================================================
+      async function fetchWithTimeout(url, timeoutMs = 4500) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const response = await fetch(url, {
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+          clearTimeout(timer);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json();
+        } catch (err) {
+          clearTimeout(timer);
+          throw err;
+        }
+      }
+
+      function applyBinanceTickerList(tickers) {
+        if (!Array.isArray(tickers)) return false;
+        const map = {};
+        for (const item of tickers) {
+          if (item && item.symbol && item.price) {
+            const p = parseFloat(item.price);
+            if (!isNaN(p) && p > 0) {
+              map[item.symbol] = p;
+            }
+          }
+        }
+
+        if (map['USDTBRL'] && map['USDTBRL'] > 0) {
+          appState.usdtBrlRate = map['USDTBRL'];
+        }
+
+        const allAssets = [...SUPPORTED_CRYPTOS];
+        for (const g of appState.goals) {
+          if (!allAssets.some(a => a.symbol === g.symbol)) {
+            allAssets.push({
+              symbol: g.symbol,
+              binancePair: g.binancePair || `${g.symbol}USDT`,
+              fallbackPair: g.fallbackPair || null
+            });
+          }
+        }
+
+        let updatedCount = 0;
+        for (const asset of allAssets) {
+          let p = map[asset.binancePair];
+          if ((!p || isNaN(p)) && asset.fallbackPair) {
+            p = map[asset.fallbackPair];
+          }
+          if (p && !isNaN(p) && p > 0) {
+            appState.pricesUSD[asset.symbol] = p;
+            updatedCount++;
+          }
+        }
+        return updatedCount > 0;
+      }
+
+      window.fetchAllPrices = async function (manualTrigger = false) {
+        const refreshIcon = document.getElementById('refresh-icon');
+        if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+        let success = false;
+
+        // Tentativa 1: Binance Principal
+        try {
+          const data = await fetchWithTimeout('https://api.binance.com/api/v3/ticker/price', 4000);
+          if (applyBinanceTickerList(data)) {
+            appState.priceSource = 'Binance';
+            success = true;
+          }
+        } catch (_) {
+          // Segue para fallback 2
+        }
+
+        // Tentativa 2: Binance Vision Data Mirror (Geralmente sem bloqueio de CORS/Geo)
+        if (!success) {
+          try {
+            const data = await fetchWithTimeout('https://data-api.binance.vision/api/v3/ticker/price', 4000);
+            if (applyBinanceTickerList(data)) {
+              appState.priceSource = 'Binance Data';
+              success = true;
+            }
+          } catch (_) {
+            // Segue para fallback 3
+          }
+        }
+
+        // Tentativa 3: CoinGecko Simple Price
+        if (!success) {
+          try {
+            const ids = SUPPORTED_CRYPTOS.map(c => c.coingeckoId).join(',');
+            const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=usd,brl`;
+            const data = await fetchWithTimeout(url, 4500);
+            if (data && typeof data === 'object') {
+              for (const c of SUPPORTED_CRYPTOS) {
+                const entry = data[c.coingeckoId];
+                if (entry && Number(entry.usd) > 0) {
+                  appState.pricesUSD[c.symbol] = Number(entry.usd);
+                  if (Number(entry.brl) > 0) {
+                    appState.usdtBrlRate = Number(entry.brl) / Number(entry.usd);
+                  }
+                  success = true;
+                }
+              }
+              if (success) appState.priceSource = 'CoinGecko';
+            }
+          } catch (_) {
+            // Mantém preços locais de referência sem erro
+          }
+        }
+
+        if (success) {
+          appState.isLiveConnected = true;
+          appState.lastPriceUpdate = new Date();
+          saveState();
+          if (manualTrigger) {
+            showToast(`Cotações sincronizadas via ${appState.priceSource}!`, 'success');
+          }
+        } else {
+          appState.isLiveConnected = false;
+          if (!appState.lastPriceUpdate) {
+            appState.priceSource = 'Modo Offline / Referência';
+          }
+          if (manualTrigger) {
+            showToast('APIs externas bloqueadas neste ambiente. Usando cotações locais.', 'info');
+          }
+        }
+
+        updateApiStatusUI();
+        if (refreshIcon) {
+          setTimeout(() => refreshIcon.classList.remove('animate-spin'), 350);
+        }
+        renderAll();
+      };
+
+      function updateApiStatusUI() {
+        const dot = document.getElementById('api-status-dot');
+        const text = document.getElementById('api-status-text');
+        const rateEl = document.getElementById('usdt-brl-rate');
+
+        if (dot && text) {
+          if (appState.isLiveConnected) {
+            dot.className = 'live-dot relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+            const timeStr = appState.lastPriceUpdate
+              ? appState.lastPriceUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              : '';
+            text.textContent = `Ao vivo • ${appState.priceSource}${timeStr ? ' (' + timeStr + ')' : ''}`;
+          } else {
+            dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+            text.textContent = appState.priceSource || 'Modo Offline / Referência';
+          }
+        }
+
+        if (rateEl) {
+          const fx = getEffectiveUsdtBrlRate();
+          const lockTag = appState.manualFxOverride ? ' [Trava]' : '';
+          rateEl.textContent = `1 USDT = R$ ${fx.toFixed(4).replace('.', ',')}${lockTag}`;
+        }
+      }
+
+      // =====================================================================
+      // 5. FORMATAÇÃO & CONVERSÃO DE MOEDA (USDT / HÍBRIDO / BRL)
+      // =====================================================================
+      function getMultiplier() {
+        return appState.currency === 'BRL' ? getEffectiveUsdtBrlRate() : 1;
+      }
+
+      function convertFromUSD(amountUSD) {
+        const val = Number(amountUSD);
+        if (isNaN(val)) return 0;
+        return val * getMultiplier();
+      }
+
+      function convertToUSD(amountDisplay) {
+        const val = Number(amountDisplay);
+        const mult = getMultiplier();
+        if (isNaN(val) || mult <= 0) return 0;
+        return val / mult;
+      }
+
+      function formatUSDT(amountUSDT, forceDecimals = null) {
+        const val = Number(amountUSDT) || 0;
+        let decimals = 2;
+        if (forceDecimals !== null) {
+          decimals = forceDecimals;
+        } else if (Math.abs(val) > 0 && Math.abs(val) < 1) {
+          decimals = 4;
+        } else if (Math.abs(val) >= 1 && Math.abs(val) < 10) {
+          decimals = 3;
+        }
+        const formatted = new Intl.NumberFormat('en-US', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        }).format(val);
+        return `$${formatted} USDT`;
+      }
+
+      function formatBRL(amountBRL, forceDecimals = null) {
+        const val = Number(amountBRL) || 0;
+        let decimals = 2;
+        if (forceDecimals !== null) {
+          decimals = forceDecimals;
+        } else if (Math.abs(val) > 0 && Math.abs(val) < 1) {
+          decimals = 4;
+        } else if (Math.abs(val) >= 1 && Math.abs(val) < 10) {
+          decimals = 3;
+        }
+        return new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        }).format(val);
+      }
+
+      function formatMoney(amountUSD, forceDecimals = null) {
+        const valUSD = Number(amountUSD) || 0;
+        if (appState.currency === 'BRL') {
+          return formatBRL(valUSD * getEffectiveUsdtBrlRate(), forceDecimals);
+        }
+        return formatUSDT(valUSD, forceDecimals);
+      }
+
+      function renderDualMoneyHTML(amountUSD, forceDecimals = null, customBrlVal = null, subClass = 'text-[11px] font-mono font-normal text-slate-400 mt-0.5') {
+        const valUSD = Number(amountUSD) || 0;
+        const valBRL = customBrlVal !== null ? Number(customBrlVal) : (valUSD * getEffectiveUsdtBrlRate());
+
+        if (appState.currency === 'HYBRID') {
+          return `<div>${formatUSDT(valUSD, forceDecimals)}</div><div class="${subClass}">≈ ${formatBRL(valBRL, forceDecimals)}</div>`;
+        }
+        if (appState.currency === 'BRL') {
+          return formatBRL(valBRL, forceDecimals);
+        }
+        return formatUSDT(valUSD, forceDecimals);
+      }
+
+      function formatCryptoQty(qty, symbol = '') {
+        const num = Number(qty) || 0;
+        const decimals = num % 1 === 0 ? 0 : (Math.abs(num) < 10 ? 4 : 2);
+        const formatted = new Intl.NumberFormat('pt-BR', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals
+        }).format(num);
+        return symbol ? `${formatted} ${symbol}` : formatted;
+      }
+
+      window.setCurrency = function (curr) {
+        appState.currency = ['USDT', 'HYBRID', 'BRL'].includes(curr) ? curr : 'USDT';
+        saveState();
+
+        ['USDT', 'HYBRID', 'BRL'].forEach(m => {
+          const btn = document.getElementById(`btn-currency-${m}`);
+          if (!btn) return;
+          btn.className = m === appState.currency
+            ? 'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950 shadow'
+            : 'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white';
+        });
+
+        renderAll();
+      };
+
+      // =====================================================================
+      // 6. MOTOR DE CÁLCULO DCA & MÉTRICAS POR ATIVO
+      // =====================================================================
+      function calculateGoalMetrics(goal) {
+        const currentPriceUSD = Number(appState.pricesUSD[goal.symbol]) || 0;
+        const currentFx = getEffectiveUsdtBrlRate();
+        const initialBalance = Math.max(0, Number(goal.initialBalance) || 0);
+        const targetAmount = Math.max(0.000001, Number(goal.targetAmount) || 0);
+        const monthsCount = Math.max(1, parseInt(goal.monthsCount, 10) || 12);
+
+        const totalToBuy = Math.max(0, targetAmount - initialBalance);
+        const baseMonthlyTargetQty = totalToBuy / monthsCount;
+
+        let monthsCompleted = 0;
+        let runningCoins = initialBalance;
+        let runningBoughtDCA = 0;
+        let runningInvestedUSD = 0;
+        let runningInvestedBRL = 0;
+
+        const schedule = [];
+
+        for (let i = 0; i < monthsCount; i++) {
+          const rec = goal.monthlyRecords[i] || {
+            month: i + 1,
+            label: getFutureMonthLabel(i),
+            boughtQty: 0,
+            pricePaidUSD: 0,
+            fxRateBRL: currentFx
+          };
+
+          const bought = Math.max(0, Number(rec.boughtQty) || 0);
+          const pricePaidUSD = Math.max(0, Number(rec.pricePaidUSD) || 0);
+          const fxRateBRL = Number(rec.fxRateBRL) > 0 ? Number(rec.fxRateBRL) : currentFx;
+
+          const monthCostUSD = bought * pricePaidUSD;
+          const monthCostBRL = monthCostUSD * fxRateBRL;
+
+          if (bought > 0) monthsCompleted++;
+
+          runningBoughtDCA += bought;
+          runningCoins += bought;
+          runningInvestedUSD += monthCostUSD;
+          runningInvestedBRL += monthCostBRL;
+
+          const cumAvgPriceUSD = runningBoughtDCA > 0 ? (runningInvestedUSD / runningBoughtDCA) : 0;
+          const cumAvgPriceBRL = runningBoughtDCA > 0 ? (runningInvestedBRL / runningBoughtDCA) : 0;
+
+          schedule.push({
+            index: i,
+            month: i + 1,
+            label: rec.label || getFutureMonthLabel(i),
+            plannedQty: baseMonthlyTargetQty,
+            plannedCumQty: initialBalance + baseMonthlyTargetQty * (i + 1),
+            boughtQty: bought,
+            pricePaidUSD,
+            fxRateBRL,
+            monthCostUSD,
+            monthCostBRL,
+            cumCoins: runningCoins,
+            cumBoughtDCA: runningBoughtDCA,
+            cumInvestedUSD: runningInvestedUSD,
+            cumInvestedBRL: runningInvestedBRL,
+            cumAvgPriceUSD,
+            cumAvgPriceBRL,
+            estimatedMonthCostAtLivePriceUSD: baseMonthlyTargetQty * currentPriceUSD
+          });
+        }
+
+        const totalBoughtDCA = runningBoughtDCA;
+        const totalInvestedUSD = runningInvestedUSD;
+        const totalInvestedHistoricalBRL = runningInvestedBRL;
+
+        const totalAccumulatedCoins = initialBalance + totalBoughtDCA;
+        const remainingCoinsToBuy = Math.max(0, targetAmount - totalAccumulatedCoins);
+        const remainingMonths = Math.max(0, monthsCount - monthsCompleted);
+        const dynamicMonthlyQty = remainingMonths > 0 ? (remainingCoinsToBuy / remainingMonths) : remainingCoinsToBuy;
+
+        const estimatedMonthlyCostUSD = baseMonthlyTargetQty * currentPriceUSD;
+        const estimatedDynamicMonthlyCostUSD = dynamicMonthlyQty * currentPriceUSD;
+        const estimatedRemainingTotalCostUSD = remainingCoinsToBuy * currentPriceUSD;
+
+        const avgBuyPriceUSD = totalBoughtDCA > 0 ? (totalInvestedUSD / totalBoughtDCA) : 0;
+        const avgBuyPriceBRL = totalBoughtDCA > 0 ? (totalInvestedHistoricalBRL / totalBoughtDCA) : 0;
+
+        const dcaCurrentValueUSD = totalBoughtDCA * currentPriceUSD;
+        const dcaPnlUSD = totalBoughtDCA > 0 ? (dcaCurrentValueUSD - totalInvestedUSD) : 0;
+        const dcaPnlPct = totalInvestedUSD > 0 ? (dcaPnlUSD / totalInvestedUSD) * 100 : 0;
+
+        const totalPositionValueUSD = totalAccumulatedCoins * currentPriceUSD;
+        const progressPct = targetAmount > 0 ? Math.min(100, (totalAccumulatedCoins / targetAmount) * 100) : 0;
+
+        const retirementPriceUSD = Math.max(0, Number(goal.retirementTargetPriceUSD) || 0);
+        const projectedRetirementTotalUSD = targetAmount * retirementPriceUSD;
+
+        return {
+          currentPriceUSD,
+          initialBalance,
+          targetAmount,
+          monthsCount,
+          totalToBuy,
+          baseMonthlyTargetQty,
+          dynamicMonthlyQty,
+          totalBoughtDCA,
+          totalAccumulatedCoins,
+          remainingCoinsToBuy,
+          remainingMonths,
+          monthsCompleted,
+          totalInvestedUSD,
+          totalInvestedHistoricalBRL,
+          estimatedMonthlyCostUSD,
+          estimatedDynamicMonthlyCostUSD,
+          estimatedRemainingTotalCostUSD,
+          avgBuyPriceUSD,
+          avgBuyPriceBRL,
+          dcaCurrentValueUSD,
+          dcaPnlUSD,
+          dcaPnlPct,
+          totalPositionValueUSD,
+          progressPct,
+          retirementPriceUSD,
+          projectedRetirementTotalUSD,
+          schedule
+        };
+      }
+
+      // =====================================================================
+      // 7. RENDERIZAÇÃO GLOBAL & ABAS
+      // =====================================================================
+      function renderAll() {
+        renderLiveTickerBar();
+        renderGlobalKPIs();
+        renderMainNavTabs();
+
+        if (appState.mainTab === 'CONVERTER') {
+          renderConverterTab();
+        } else if (appState.mainTab === 'CHARTS') {
+          renderChartsAndRetirementTab();
+        } else {
+          renderDcaPlannerTab();
+        }
+      }
+
+      function renderLiveTickerBar() {
+        const container = document.getElementById('live-ticker-bar');
+        if (!container) return;
+
+        const assets = [...SUPPORTED_CRYPTOS];
+        for (const g of appState.goals) {
+          if (!assets.some(a => a.symbol === g.symbol)) {
+            assets.push({ symbol: g.symbol, name: g.name, color: g.color || '#10b981' });
+          }
+        }
+
+        container.innerHTML = assets.map(asset => {
+          const pUSD = Number(appState.pricesUSD[asset.symbol]) || 0;
+          let priceText = '--';
+          if (pUSD > 0) {
+            priceText = appState.currency === 'HYBRID'
+              ? `${formatUSDT(pUSD)} <span class="text-slate-400 font-normal">(${formatBRL(pUSD * getEffectiveUsdtBrlRate())})</span>`
+              : formatMoney(pUSD);
+          }
+          const hasGoal = appState.goals.some(g => g.symbol === asset.symbol);
+          return `
+            <button type="button" onclick="window.handleTickerClick('${asset.symbol}')"
+              class="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg transition-colors ${
+                hasGoal
+                  ? 'bg-slate-800/80 border border-slate-700/80 hover:border-emerald-500/50'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }">
+              <span class="w-2 h-2 rounded-full" style="background-color: ${asset.color}"></span>
+              <span class="font-bold text-slate-200">${asset.symbol}/USDT</span>
+              <span class="font-mono text-emerald-400 font-semibold tabular-nums">${priceText}</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      window.handleTickerClick = function (symbol) {
+        const found = appState.goals.find(g => g.symbol === symbol);
+        if (found) {
+          appState.mainTab = 'DCA';
+          appState.selectedGoalId = found.id;
+          saveState();
+          renderAll();
+        } else {
+          window.openGoalModal(null, symbol);
+        }
+      };
+
+      function renderGlobalKPIs() {
+        let totalPortfolioUSD = 0;
+        let totalInvestedUSD = 0;
+        let totalInvestedBRL = 0;
+        let totalRemainingUSD = 0;
+        let totalDcaValueUSD = 0;
+        let totalRetirementUSD = 0;
+        let sumProgress = 0;
+
+        for (const g of appState.goals) {
+          const m = calculateGoalMetrics(g);
+          totalPortfolioUSD += m.totalPositionValueUSD;
+          totalInvestedUSD += m.totalInvestedUSD;
+          totalInvestedBRL += m.totalInvestedHistoricalBRL;
+          totalRemainingUSD += m.estimatedRemainingTotalCostUSD;
+          totalDcaValueUSD += m.dcaCurrentValueUSD;
+          totalRetirementUSD += m.projectedRetirementTotalUSD;
+          sumProgress += m.progressPct;
+        }
+
+        const avgProgress = appState.goals.length > 0 ? (sumProgress / appState.goals.length) : 0;
+        const totalPnlUSD = totalDcaValueUSD - totalInvestedUSD;
+        const totalPnlPct = totalInvestedUSD > 0 ? (totalPnlUSD / totalInvestedUSD) * 100 : 0;
+
+        const elVal = document.getElementById('kpi-total-value');
+        if (elVal) elVal.innerHTML = renderDualMoneyHTML(totalPortfolioUSD, 2, null, 'text-xs font-mono font-normal text-slate-400 mt-1');
+        const elSub = document.getElementById('kpi-total-sub');
+        if (elSub) elSub.textContent = `${appState.goals.length} ativo(s) em acumulação`;
+
+        const elInv = document.getElementById('kpi-total-invested');
+        if (elInv) elInv.innerHTML = renderDualMoneyHTML(totalInvestedUSD, 2, totalInvestedBRL, 'text-xs font-mono font-normal text-slate-400 mt-1');
+        const elRem = document.getElementById('kpi-remaining-cost');
+        if (elRem) elRem.textContent = `Falta investir (hoje): ${formatMoney(totalRemainingUSD, 2)}`;
+
+        const elPnl = document.getElementById('kpi-pnl-value');
+        const elPnlPct = document.getElementById('kpi-pnl-pct');
+        if (elPnl && elPnlPct) {
+          const sign = totalPnlUSD >= 0 ? '+' : '';
+          elPnl.innerHTML = appState.currency === 'HYBRID'
+            ? `<div>${sign}${formatUSDT(totalPnlUSD, 2)}</div><div class="text-xs font-mono font-normal text-slate-400 mt-1">≈ ${sign}${formatBRL(totalPnlUSD * getEffectiveUsdtBrlRate(), 2)}</div>`
+            : `${sign}${formatMoney(totalPnlUSD, 2)}`;
+          elPnl.className = `text-2xl sm:text-3xl font-extrabold tabular-nums tracking-tight ${totalPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+          elPnlPct.textContent = totalInvestedUSD > 0
+            ? `${sign}${totalPnlPct.toFixed(2).replace('.', ',')}% sobre o capital aportado`
+            : 'Registre compras mensais para calcular lucro/prejuízo';
+        }
+
+        const elRet = document.getElementById('kpi-retirement-projected');
+        if (elRet) elRet.innerHTML = renderDualMoneyHTML(totalRetirementUSD, 2, null, 'text-xs font-mono font-normal text-amber-200/70 mt-1');
+        const elProgTxt = document.getElementById('kpi-overall-progress-text');
+        if (elProgTxt) elProgTxt.textContent = `${avgProgress.toFixed(1).replace('.', ',')}%`;
+        const elProgBar = document.getElementById('kpi-overall-progress-bar');
+        if (elProgBar) elProgBar.style.width = `${avgProgress}%`;
+      }
+
+      function renderMainNavTabs() {
+        const container = document.getElementById('main-nav-tabs');
+        if (!container) return;
+
+        const tabs = [
+          {
+            id: 'DCA',
+            label: 'Planejador DCA & Metas',
+            badge: `${appState.goals.length}`,
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />'
+          },
+          {
+            id: 'CONVERTER',
+            label: 'Conversor Avançado USDT ↔ BRL',
+            badge: null,
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />'
+          },
+          {
+            id: 'CHARTS',
+            label: 'Gráficos & Simulador Aposentadoria',
+            badge: null,
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />'
+          }
+        ];
+
+        container.innerHTML = tabs.map(t => {
+          const active = appState.mainTab === t.id;
+          return `
+            <button type="button" onclick="window.selectMainTab('${t.id}')"
+              class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+                active
+                  ? 'bg-slate-800 text-white border border-emerald-500/50 shadow-md'
+                  : 'bg-slate-900/70 text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
+              }">
+              <svg class="w-4 h-4 ${active ? 'text-emerald-400' : 'text-slate-400'}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                ${t.icon}
+              </svg>
+              <span>${t.label}</span>
+              ${t.badge ? `<span class="text-[11px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950 text-emerald-400">${t.badge}</span>` : ''}
+            </button>
+          `;
+        }).join('');
+      }
+
+      window.selectMainTab = function (tabId) {
+        appState.mainTab = tabId;
+        saveState();
+        renderAll();
+      };
+
+      // =====================================================================
+      // 8. ABA 1: PLANEJADOR DCA & METAS (POLYGON, BNB & MULTI-CRIPTO)
+      // =====================================================================
+      function renderDcaPlannerTab() {
+        const container = document.getElementById('main-view-container');
+        if (!container) return;
+
+        if (appState.goals.length === 0) {
+          container.innerHTML = `
+            <div class="rounded-2xl bg-slate-900 border border-slate-800 p-10 text-center space-y-4">
+              <h3 class="text-lg font-bold text-white">Nenhuma meta cripto cadastrada</h3>
+              <p class="text-sm text-slate-400 max-w-md mx-auto">Adicione uma meta (ex: 10.000 Polygon em 12 meses) para calcular automaticamente seus aportes mensais e preço médio.</p>
+              <button type="button" onclick="window.openGoalModal()" class="px-5 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-sm">
+                Criar Primeira Meta
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        const goal = appState.goals.find(g => g.id === appState.selectedGoalId) || appState.goals[0];
+        appState.selectedGoalId = goal.id;
+        const m = calculateGoalMetrics(goal);
+        const currSymbol = appState.currency === 'BRL' ? 'R$' : 'USDT';
+
+        // Pills de seleção de ativos
+        const assetPillsHTML = appState.goals.map(g => {
+          const gm = calculateGoalMetrics(g);
+          const isSelected = g.id === goal.id;
+          return `
+            <button type="button" onclick="window.selectGoal('${g.id}')"
+              class="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
+                isSelected
+                  ? 'bg-emerald-500/15 text-white border-2 border-emerald-500 shadow-lg shadow-emerald-500/10'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
+              }">
+              <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${g.color || '#10b981'}"></span>
+              <span>${g.name}</span>
+              <span class="text-[11px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950 text-emerald-400 tabular-nums">
+                ${gm.progressPct.toFixed(0)}%
+              </span>
+            </button>
+          `;
+        }).join('');
+
+        container.innerHTML = `
+          <!-- Seletor Rápido de Criptomoedas da Carteira -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+              ${assetPillsHTML}
+            </div>
+            <div class="text-xs text-slate-400">
+              Dica: Clique em <strong class="text-emerald-400">+ Nova Meta Cripto</strong> para somar mais ativos à sua aposentadoria.
+            </div>
+          </div>
+
+          <!-- Painel Principal do Ativo Selecionado -->
+          <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-xl space-y-6">
+            <!-- Topo do Ativo -->
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800">
+              <div class="flex items-start sm:items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-extrabold text-lg text-white shadow-lg shrink-0"
+                  style="background-color: ${goal.color || '#8b5cf6'}">
+                  ${goal.symbol.slice(0, 4)}
+                </div>
+                <div>
+                  <div class="flex flex-wrap items-center gap-2.5">
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-white">${goal.name}</h2>
+                    <span class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono font-bold text-emerald-400 tabular-nums">
+                      Cotação Atual: ${formatMoney(m.currentPriceUSD)}
+                      ${appState.currency === 'HYBRID' ? `<span class="text-slate-400 font-normal"> (${formatBRL(m.currentPriceUSD * getEffectiveUsdtBrlRate())})</span>` : ''}
+                    </span>
+                  </div>
+                  <p class="text-xs sm:text-sm text-slate-400 mt-1">
+                    Você tem <strong class="text-white">${formatCryptoQty(goal.initialBalance, goal.symbol)}</strong> e precisa comprar
+                    <strong class="text-emerald-400">${formatCryptoQty(m.totalToBuy, goal.symbol)}</strong> em <strong class="text-white">${goal.monthsCount} meses</strong>
+                    (<strong class="text-sky-400">${formatCryptoQty(m.baseMonthlyTargetQty, goal.symbol)}/mês</strong>).
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="window.openGoalModal('${goal.id}')"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors">
+                  <span>Editar Parâmetros</span>
+                </button>
+                <button type="button" onclick="window.confirmDeleteGoal('${goal.id}')"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-950/50 hover:bg-rose-900/60 border border-rose-900/50 text-xs font-semibold text-rose-300 transition-colors">
+                  <span>Remover</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Barra de Progresso -->
+            <div>
+              <div class="flex flex-wrap items-center justify-between gap-2 text-xs mb-2">
+                <span class="text-slate-400">
+                  Saldo Acumulado: <strong class="text-white font-mono">${formatCryptoQty(m.totalAccumulatedCoins, goal.symbol)}</strong>
+                  de <strong class="text-white font-mono">${formatCryptoQty(goal.targetAmount, goal.symbol)}</strong>
+                </span>
+                <span class="font-bold text-emerald-400 font-mono">
+                  ${m.progressPct.toFixed(2).replace('.', ',')}% concluído • Faltam ${formatCryptoQty(m.remainingCoinsToBuy, goal.symbol)}
+                </span>
+              </div>
+              <div class="w-full h-3 rounded-full bg-slate-950 border border-slate-800 overflow-hidden p-0.5">
+                <div class="h-full rounded-full transition-all duration-500"
+                  style="width: ${m.progressPct}%; background-color: ${goal.color || '#10b981'}"></div>
+              </div>
+            </div>
+
+            <!-- 6 Cards de Métricas do Ativo -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="p-4 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Compra Mensal Necessária</div>
+                <div class="text-xl font-extrabold text-white font-mono mt-1 tabular-nums">
+                  ${formatCryptoQty(m.baseMonthlyTargetQty, goal.symbol)} <span class="text-xs font-normal text-slate-400">/mês</span>
+                </div>
+                <div class="text-xs text-slate-400 mt-1 tabular-nums">
+                  Ritmo ajustado (${m.remainingMonths}m rest.): <span class="text-violet-400 font-semibold">${formatCryptoQty(m.dynamicMonthlyQty, goal.symbol)}/mês</span>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Custo Mensal Estimado (Hoje)</div>
+                <div class="text-xl font-extrabold text-sky-400 font-mono mt-1 tabular-nums">
+                  ${renderDualMoneyHTML(m.estimatedMonthlyCostUSD, 2)}
+                </div>
+                <div class="text-xs text-slate-400 mt-1 tabular-nums">
+                  Custo restante total: <span class="text-slate-200 font-semibold">${formatMoney(m.estimatedRemainingTotalCostUSD, 2)}</span>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Seu Preço Médio Pago (DCA)</div>
+                <div class="text-xl font-extrabold text-emerald-400 font-mono mt-1 tabular-nums">
+                  ${m.avgBuyPriceUSD > 0 ? renderDualMoneyHTML(m.avgBuyPriceUSD, null, m.avgBuyPriceBRL) : 'Aguardando 1ª compra'}
+                </div>
+                <div class="text-xs text-slate-400 mt-1 tabular-nums">
+                  Investido no DCA: <span class="text-slate-200 font-semibold">${formatMoney(m.totalInvestedUSD, 2)}</span>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Valor Atual da Posição</div>
+                <div class="text-xl font-extrabold text-white font-mono mt-1 tabular-nums">
+                  ${renderDualMoneyHTML(m.totalPositionValueUSD, 2)}
+                </div>
+                <div class="text-xs text-slate-400 mt-1 tabular-nums">
+                  Inicial (${formatCryptoQty(goal.initialBalance)}) + Compradas (${formatCryptoQty(m.totalBoughtDCA)})
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Lucro / Prejuízo das Compras</div>
+                <div class="text-xl font-extrabold font-mono mt-1 tabular-nums ${m.dcaPnlUSD >= 0 ? 'text-emerald-400' : 'text-rose-400'}">
+                  ${m.dcaPnlUSD >= 0 ? '+' : ''}${formatMoney(m.dcaPnlUSD, 2)}
+                  <span class="text-xs font-bold">(${m.dcaPnlUSD >= 0 ? '+' : ''}${m.dcaPnlPct.toFixed(2).replace('.', ',')}%)</span>
+                </div>
+                <div class="text-xs text-slate-400 mt-1">
+                  Comparado ao seu preço médio pago
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-slate-950 border border-amber-500/30">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400">Projeção Aposentadoria</span>
+                  <span class="text-[10px] text-amber-300/80 font-mono">Meta: ${formatCryptoQty(goal.targetAmount)}</span>
+                </div>
+                <div class="text-xl font-extrabold text-amber-300 font-mono mt-1 tabular-nums">
+                  ${renderDualMoneyHTML(m.projectedRetirementTotalUSD, 2, null, 'text-[11px] font-mono font-normal text-amber-200/70 mt-0.5')}
+                </div>
+                <div class="mt-2 flex items-center gap-2">
+                  <label class="text-[11px] text-slate-300 whitespace-nowrap">Alvo (${currSymbol}):</label>
+                  <input type="number" step="any" min="0"
+                    value="${Number(convertFromUSD(goal.retirementTargetPriceUSD).toFixed(4))}"
+                    onchange="window.updateRetirementPrice('${goal.id}', this.value)"
+                    class="w-24 rounded-lg bg-slate-900 border border-amber-500/40 px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-amber-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabela Cronograma Mensal (Mês 1 a N) -->
+          <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
+            <div class="p-5 sm:p-6 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 class="text-base sm:text-lg font-bold text-white">Cronograma Mensal de Compras (${goal.symbol})</h3>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  Preencha as moedas compradas e o preço pago em <strong>${currSymbol}</strong> mês a mês para calcular automaticamente o <strong>Preço Médio</strong>.
+                </p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="window.selectMainTab('CONVERTER')"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-bold text-sky-300 transition-colors">
+                  <span>Conversor BRL → USDT</span>
+                </button>
+                <button type="button" onclick="window.autoFillNextEmptyMonth('${goal.id}')"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-bold text-emerald-300 transition-colors">
+                  <span>+ Registrar Próximo Mês a Preço Atual</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-950/90 border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <th class="py-3.5 px-4">Mês</th>
+                    <th class="py-3.5 px-4">Meta Mês</th>
+                    <th class="py-3.5 px-4">Compradas (${goal.symbol})</th>
+                    <th class="py-3.5 px-4">Preço Pago (${currSymbol})</th>
+                    <th class="py-3.5 px-4">Câmbio (R$/USDT)</th>
+                    <th class="py-3.5 px-4">Investido Mês</th>
+                    <th class="py-3.5 px-4">Preço Médio Acum.</th>
+                    <th class="py-3.5 px-4">Saldo Acumulado</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/70 text-xs sm:text-sm tabular-nums">
+                  ${m.schedule.map(row => {
+                    const displayPricePaid = row.pricePaidUSD > 0
+                      ? Number(convertFromUSD(row.pricePaidUSD).toFixed(row.pricePaidUSD * getMultiplier() < 1 ? 4 : 2))
+                      : '';
+                    const isCompleted = row.boughtQty > 0;
+
+                    return `
+                      <tr class="hover:bg-slate-800/35 transition-colors ${isCompleted ? 'bg-emerald-950/10' : ''}">
+                        <td class="py-3 px-4 whitespace-nowrap">
+                          <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">
+                              ${row.month}
+                            </span>
+                            <span class="font-semibold text-slate-200">${row.label}</span>
+                          </div>
+                        </td>
+
+                        <td class="py-3 px-4 font-mono text-slate-300 whitespace-nowrap">
+                          <div>${formatCryptoQty(row.plannedQty)}</div>
+                          <div class="text-[10px] text-slate-500">${formatMoney(row.estimatedMonthCostAtLivePriceUSD, 2)}</div>
+                        </td>
+
+                        <td class="py-3 px-4 whitespace-nowrap">
+                          <div class="flex items-center gap-1.5">
+                            <input type="number" step="any" min="0"
+                              value="${row.boughtQty > 0 ? row.boughtQty : ''}"
+                              placeholder="${row.plannedQty.toFixed(2)}"
+                              onchange="window.updateMonthlyRecord('${goal.id}', ${row.index}, 'boughtQty', this.value)"
+                              class="w-24 sm:w-28 rounded-lg bg-slate-950 border ${isCompleted ? 'border-emerald-500/40' : 'border-slate-700'} px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500" />
+                            <button type="button" title="Preencher com a meta do mês"
+                              onclick="window.fillMonthTargetQty('${goal.id}', ${row.index}, ${row.plannedQty})"
+                              class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300">
+                              Meta
+                            </button>
+                          </div>
+                        </td>
+
+                        <td class="py-3 px-4 whitespace-nowrap">
+                          <div class="flex items-center gap-1.5">
+                            <input type="number" step="any" min="0"
+                              value="${displayPricePaid}"
+                              placeholder="${convertFromUSD(m.currentPriceUSD).toFixed(4)}"
+                              onchange="window.updateMonthlyRecord('${goal.id}', ${row.index}, 'pricePaid', this.value)"
+                              class="w-24 sm:w-28 rounded-lg bg-slate-950 border ${row.pricePaidUSD > 0 ? 'border-emerald-500/40' : 'border-slate-700'} px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500" />
+                            <button type="button" title="Usar cotação atual"
+                              onclick="window.fillMonthLivePrice('${goal.id}', ${row.index})"
+                              class="px-2 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-[10px] font-bold text-sky-300">
+                              Atual
+                            </button>
+                          </div>
+                        </td>
+
+                        <td class="py-3 px-4 whitespace-nowrap">
+                          <input type="number" step="0.0001" min="0.1"
+                            value="${row.fxRateBRL.toFixed(2)}"
+                            onchange="window.updateMonthlyRecord('${goal.id}', ${row.index}, 'fxRateBRL', this.value)"
+                            class="w-20 rounded-lg bg-slate-950 border border-slate-700 px-2 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-emerald-500" />
+                        </td>
+
+                        <td class="py-3 px-4 font-mono font-semibold text-slate-200 whitespace-nowrap">
+                          ${row.monthCostUSD > 0 ? renderDualMoneyHTML(row.monthCostUSD, 2, row.monthCostBRL, 'text-[10px] text-slate-400') : '--'}
+                        </td>
+
+                        <td class="py-3 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          ${row.cumAvgPriceUSD > 0 ? renderDualMoneyHTML(row.cumAvgPriceUSD, null, row.cumAvgPriceBRL, 'text-[10px] font-normal text-slate-400') : '--'}
+                        </td>
+
+                        <td class="py-3 px-4 font-mono text-slate-200 whitespace-nowrap">
+                          ${formatCryptoQty(row.cumCoins, goal.symbol)}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      window.selectGoal = function (goalId) {
+        appState.selectedGoalId = goalId;
+        saveState();
+        renderAll();
+      };
+
+      // =====================================================================
+      // 9. ABA 2: CONVERSOR AVANÇADO USDT <-> BRL
+      // =====================================================================
+      function calculateConverterResults() {
+        const c = appState.converter;
+        const spotFx = getEffectiveUsdtBrlRate();
+        const spreadMult = 1 + (Math.max(0, Number(c.pixSpreadPct) || 0) / 100);
+        const feeRate = Math.min(0.99, Math.max(0, Number(c.exchangeFeePct) || 0) / 100);
+        const netFeeUSDT = Math.max(0, Number(c.networkFeeUSDT) || 0);
+
+        let grossBRL = 0;
+        let netUSDT = 0;
+        let totalFeesBRL = 0;
+        let totalFeesUSDT = 0;
+        let effectiveFxRate = spotFx;
+
+        if (c.direction === 'BRL_TO_USDT') {
+          grossBRL = Math.max(0, Number(c.amountBRL) || 0);
+          const rateWithSpread = spotFx * spreadMult;
+          const grossUSDT = rateWithSpread > 0 ? (grossBRL / rateWithSpread) : 0;
+          const tradeFeeUSDT = grossUSDT * feeRate;
+          netUSDT = Math.max(0, grossUSDT - tradeFeeUSDT - netFeeUSDT);
+
+          const pureSpotUSDT = spotFx > 0 ? (grossBRL / spotFx) : 0;
+          totalFeesUSDT = Math.max(0, pureSpotUSDT - netUSDT);
+          totalFeesBRL = totalFeesUSDT * spotFx;
+          effectiveFxRate = netUSDT > 0 ? (grossBRL / netUSDT) : rateWithSpread;
+        } else {
+          netUSDT = Math.max(0, Number(c.amountUSDT) || 0);
+          const grossUSDT = (netUSDT + netFeeUSDT) / Math.max(0.01, 1 - feeRate);
+          const rateWithSpread = spotFx * spreadMult;
+          grossBRL = grossUSDT * rateWithSpread;
+
+          const pureSpotBRL = netUSDT * spotFx;
+          totalFeesBRL = Math.max(0, grossBRL - pureSpotBRL);
+          totalFeesUSDT = spotFx > 0 ? (totalFeesBRL / spotFx) : 0;
+          effectiveFxRate = netUSDT > 0 ? (grossBRL / netUSDT) : rateWithSpread;
+        }
+
+        const targetPriceUSD = Number(appState.pricesUSD[c.targetSymbol]) || 0;
+        const purchasableCryptoQty = targetPriceUSD > 0 ? (netUSDT / targetPriceUSD) : 0;
+
+        return {
+          spotFx,
+          grossBRL,
+          netUSDT,
+          totalFeesBRL,
+          totalFeesUSDT,
+          effectiveFxRate,
+          targetPriceUSD,
+          purchasableCryptoQty
+        };
+      }
+
+      function renderConverterTab() {
+        const container = document.getElementById('main-view-container');
+        if (!container) return;
+
+        const c = appState.converter;
+        const res = calculateConverterResults();
+        const isBrlToUsdt = c.direction === 'BRL_TO_USDT';
+
+        const selectedGoal = appState.goals.find(g => g.id === c.targetGoalId) || appState.goals[0];
+        const monthsOptions = selectedGoal
+          ? selectedGoal.monthlyRecords.map((r, idx) =>
+              `<option value="${idx}" ${c.targetMonthIndex === idx ? 'selected' : ''}>Mês ${r.month} (${r.label})</option>`
+            ).join('')
+          : '<option value="0">Mês 1</option>';
+
+        container.innerHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Calculadora Bidirecional -->
+            <div class="lg:col-span-7 rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-xl space-y-5">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                  <h2 class="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+                    <span>Conversor Complexo USDT ↔ BRL</span>
+                  </h2>
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    Simule conversão Pix BRL → USDT líquido com taxas de corretora, spread e taxa de rede.
+                  </p>
+                </div>
+
+                <button type="button" onclick="window.toggleConverterDirection()"
+                  class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-bold text-sky-300 transition-colors">
+                  <span>⇄ ${isBrlToUsdt ? 'Modo: BRL → USDT' : 'Modo: USDT → BRL'}</span>
+                </button>
+              </div>
+
+              <!-- Taxa de Câmbio & Trava Manual -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Cotação Base USDT/BRL</div>
+                  <div class="text-base font-mono font-extrabold text-emerald-400 mt-0.5">
+                    1 USDT = R$ ${res.spotFx.toFixed(4).replace('.', ',')}
+                    <span class="text-[11px] font-normal text-slate-400 ml-1">(${appState.manualFxOverride ? 'Trava Manual' : appState.priceSource})</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <label class="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" ${appState.manualFxOverride ? 'checked' : ''} onchange="window.toggleManualFx(this.checked)"
+                      class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500" />
+                    <span>Travar Câmbio:</span>
+                  </label>
+                  <input type="number" step="0.0001" min="0.1"
+                    value="${res.spotFx.toFixed(4)}"
+                    ${!appState.manualFxOverride ? 'disabled' : ''}
+                    onchange="window.updateManualFxValue(this.value)"
+                    class="w-24 rounded-lg bg-slate-900 border ${appState.manualFxOverride ? 'border-amber-500/60 text-white' : 'border-slate-800 text-slate-500'} px-2.5 py-1.5 text-xs font-mono focus:outline-none" />
+                </div>
+              </div>
+
+              <!-- Inputs BRL / USDT -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="p-4 rounded-xl ${isBrlToUsdt ? 'bg-emerald-950/20 border-2 border-emerald-500/50' : 'bg-slate-950 border border-slate-800'}">
+                  <label class="block text-xs font-bold uppercase tracking-wider ${isBrlToUsdt ? 'text-emerald-400' : 'text-slate-400'} mb-1.5">
+                    ${isBrlToUsdt ? '1. Valor Enviado em Reais (BRL)' : 'Total Necessário em Reais (BRL)'}
+                  </label>
+                  <div class="relative flex items-center">
+                    <span class="absolute left-3.5 text-sm font-mono font-bold text-slate-400">R$</span>
+                    <input type="number" step="any" min="0"
+                      value="${isBrlToUsdt ? c.amountBRL : res.grossBRL.toFixed(2)}"
+                      ${!isBrlToUsdt ? 'readonly' : ''}
+                      oninput="window.updateConverterField('amountBRL', this.value)"
+                      class="w-full rounded-xl bg-slate-900 border border-slate-700 pl-10 pr-3.5 py-3 text-lg font-mono font-extrabold text-white focus:outline-none focus:border-emerald-500" />
+                  </div>
+                  ${isBrlToUsdt ? `
+                    <div class="flex flex-wrap gap-1.5 mt-2.5">
+                      ${[500, 1000, 2500, 5000].map(p => `
+                        <button type="button" onclick="window.setConverterPresetBRL(${p})"
+                          class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-slate-300">
+                          R$ ${p.toLocaleString('pt-BR')}
+                        </button>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+
+                <div class="p-4 rounded-xl ${!isBrlToUsdt ? 'bg-emerald-950/20 border-2 border-emerald-500/50' : 'bg-slate-950 border border-slate-800'}">
+                  <label class="block text-xs font-bold uppercase tracking-wider ${!isBrlToUsdt ? 'text-emerald-400' : 'text-slate-400'} mb-1.5">
+                    ${!isBrlToUsdt ? '1. USDT Líquido Desejado' : 'USDT Líquido Recebido'}
+                  </label>
+                  <div class="relative flex items-center">
+                    <span class="absolute left-3.5 text-sm font-mono font-bold text-emerald-400">$</span>
+                    <input type="number" step="any" min="0"
+                      value="${!isBrlToUsdt ? c.amountUSDT : res.netUSDT.toFixed(2)}"
+                      ${isBrlToUsdt ? 'readonly' : ''}
+                      oninput="window.updateConverterField('amountUSDT', this.value)"
+                      class="w-full rounded-xl bg-slate-900 border border-slate-700 pl-8 pr-14 py-3 text-lg font-mono font-extrabold text-emerald-400 focus:outline-none focus:border-emerald-500" />
+                    <span class="absolute right-3.5 text-xs font-mono font-bold text-slate-400">USDT</span>
+                  </div>
+                  ${!isBrlToUsdt ? `
+                    <div class="flex flex-wrap gap-1.5 mt-2.5">
+                      ${[100, 250, 500, 1000].map(p => `
+                        <button type="button" onclick="window.setConverterPresetUSDT(${p})"
+                          class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-slate-300">
+                          $${p}
+                        </button>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- Taxas -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                  <label class="block text-[11px] font-semibold text-slate-400 mb-1">Taxa Corretora (%)</label>
+                  <input type="number" step="0.01" min="0" max="50"
+                    value="${c.exchangeFeePct}"
+                    oninput="window.updateConverterField('exchangeFeePct', this.value)"
+                    class="w-full rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-sky-500" />
+                  <span class="text-[10px] text-slate-500 mt-1 block">Binance Spot: 0,10%</span>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                  <label class="block text-[11px] font-semibold text-slate-400 mb-1">Spread Pix / P2P (%)</label>
+                  <input type="number" step="0.05" min="0" max="50"
+                    value="${c.pixSpreadPct}"
+                    oninput="window.updateConverterField('pixSpreadPct', this.value)"
+                    class="w-full rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-sky-500" />
+                  <span class="text-[10px] text-slate-500 mt-1 block">Ágio acima do USDTBRL</span>
+                </div>
+
+                <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                  <label class="block text-[11px] font-semibold text-slate-400 mb-1">Taxa Rede (USDT)</label>
+                  <input type="number" step="0.1" min="0" max="500"
+                    value="${c.networkFeeUSDT}"
+                    oninput="window.updateConverterField('networkFeeUSDT', this.value)"
+                    class="w-full rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-sky-500" />
+                  <span class="text-[10px] text-slate-500 mt-1 block">Opcional (saque carteira)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Resumo Efetivo & Lançamento Direto -->
+            <div class="lg:col-span-5 rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-xl space-y-4">
+              <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300">Resumo Efetivo &amp; Poder de Compra</h3>
+
+              <div class="space-y-2 text-xs sm:text-sm tabular-nums">
+                <div class="flex justify-between py-1.5 border-b border-slate-800/80">
+                  <span class="text-slate-400">Total em Reais (BRL):</span>
+                  <span class="font-mono font-semibold text-white">${formatBRL(res.grossBRL, 2)}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-800/80">
+                  <span class="text-slate-400">Taxas &amp; Spread:</span>
+                  <span class="font-mono font-semibold text-rose-400">-${formatBRL(res.totalFeesBRL, 2)} (-${formatUSDT(res.totalFeesUSDT, 2)})</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-800/80">
+                  <span class="text-slate-400">Câmbio Efetivo Real:</span>
+                  <span class="font-mono font-bold text-amber-400">R$ ${res.effectiveFxRate.toFixed(4).replace('.', ',')} / USDT</span>
+                </div>
+                <div class="flex justify-between py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 mt-2">
+                  <span class="font-bold text-emerald-300">USDT Líquido:</span>
+                  <span class="font-mono font-extrabold text-emerald-400 text-base">${formatUSDT(res.netUSDT, 2)}</span>
+                </div>
+              </div>
+
+              <!-- Poder de Compra na Cripto -->
+              <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-bold text-slate-300">Compra Direta de:</span>
+                  <select onchange="window.updateConverterField('targetSymbol', this.value)"
+                    class="rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1 text-xs font-bold text-white focus:outline-none">
+                    ${SUPPORTED_CRYPTOS.map(cr =>
+                      `<option value="${cr.symbol}" ${c.targetSymbol === cr.symbol ? 'selected' : ''}>${cr.symbol} (${cr.name})</option>`
+                    ).join('')}
+                  </select>
+                </div>
+                <div class="text-2xl font-extrabold text-white font-mono tabular-nums">
+                  ${formatCryptoQty(res.purchasableCryptoQty, c.targetSymbol)}
+                </div>
+                <div class="text-[11px] text-slate-400 font-mono">
+                  Cotação ${c.targetSymbol}/USDT: ${formatUSDT(res.targetPriceUSD)}
+                </div>
+              </div>
+
+              <!-- Enviar para o Cronograma DCA -->
+              ${appState.goals.length > 0 ? `
+                <div class="pt-2 border-t border-slate-800 space-y-3">
+                  <div class="text-xs font-bold text-slate-300">Lançar esta Compra no Cronograma DCA:</div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <select onchange="window.updateConverterField('targetGoalId', this.value)"
+                      class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none">
+                      ${appState.goals.map(g =>
+                        `<option value="${g.id}" ${selectedGoal && selectedGoal.id === g.id ? 'selected' : ''}>Meta: ${g.symbol}</option>`
+                      ).join('')}
+                    </select>
+                    <select onchange="window.updateConverterField('targetMonthIndex', parseInt(this.value, 10))"
+                      class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none">
+                      ${monthsOptions}
+                    </select>
+                  </div>
+                  <button type="button" onclick="window.applyConversionToSchedule()"
+                    class="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                    Aplicar Compra ao Mês Selecionado
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      window.toggleConverterDirection = function () {
+        appState.converter.direction = appState.converter.direction === 'BRL_TO_USDT' ? 'USDT_TO_BRL' : 'BRL_TO_USDT';
+        saveState();
+        renderConverterTab();
+      };
+
+      window.updateConverterField = function (field, rawValue) {
+        if (field === 'targetSymbol' || field === 'targetGoalId') {
+          appState.converter[field] = rawValue;
+          if (field === 'targetGoalId') {
+            appState.converter.targetMonthIndex = 0;
+            const g = appState.goals.find(item => item.id === rawValue);
+            if (g) appState.converter.targetSymbol = g.symbol;
+          }
+        } else if (field === 'targetMonthIndex') {
+          appState.converter.targetMonthIndex = parseInt(rawValue, 10) || 0;
+        } else {
+          const val = parseFloat(rawValue);
+          appState.converter[field] = isNaN(val) || val < 0 ? 0 : val;
+        }
+        saveState();
+        renderConverterTab();
+      };
+
+      window.setConverterPresetBRL = function (val) {
+        appState.converter.direction = 'BRL_TO_USDT';
+        appState.converter.amountBRL = val;
+        saveState();
+        renderConverterTab();
+      };
+
+      window.setConverterPresetUSDT = function (val) {
+        appState.converter.direction = 'USDT_TO_BRL';
+        appState.converter.amountUSDT = val;
+        saveState();
+        renderConverterTab();
+      };
+
+      window.toggleManualFx = function (checked) {
+        appState.manualFxOverride = Boolean(checked);
+        if (checked && (!appState.manualUsdtBrlRate || appState.manualUsdtBrlRate <= 0)) {
+          appState.manualUsdtBrlRate = appState.usdtBrlRate;
+        }
+        saveState();
+        updateApiStatusUI();
+        renderAll();
+      };
+
+      window.updateManualFxValue = function (rawVal) {
+        const val = parseFloat(rawVal);
+        if (!isNaN(val) && val > 0) {
+          appState.manualUsdtBrlRate = val;
+          saveState();
+          updateApiStatusUI();
+          renderAll();
+        }
+      };
+
+      window.applyConversionToSchedule = function () {
+        const c = appState.converter;
+        const goal = appState.goals.find(g => g.id === c.targetGoalId) || appState.goals[0];
+        if (!goal) return;
+
+        const res = calculateConverterResults();
+        const livePriceUSD = Number(appState.pricesUSD[goal.symbol]) || 0;
+        if (livePriceUSD <= 0) {
+          showToast(`Cotação de ${goal.symbol}/USDT indisponível.`, 'error');
+          return;
+        }
+
+        const qtyBought = res.netUSDT / livePriceUSD;
+        const idx = Math.min(goal.monthlyRecords.length - 1, Math.max(0, c.targetMonthIndex));
+
+        goal.monthlyRecords[idx].boughtQty = Number(qtyBought.toFixed(4));
+        goal.monthlyRecords[idx].pricePaidUSD = livePriceUSD;
+        goal.monthlyRecords[idx].fxRateBRL = res.effectiveFxRate;
+
+        appState.mainTab = 'DCA';
+        appState.selectedGoalId = goal.id;
+        saveState();
+        renderAll();
+        showToast(`Lançado ${formatCryptoQty(qtyBought, goal.symbol)} (${formatUSDT(res.netUSDT)}) no Mês ${idx + 1}!`, 'success');
+      };
+
+      // =====================================================================
+      // 10. ABA 3: GRÁFICOS & SIMULADOR DE CICLO APOSENTADORIA
+      // =====================================================================
+      function renderChartsAndRetirementTab() {
+        const container = document.getElementById('main-view-container');
+        if (!container) return;
+
+        if (appState.goals.length === 0) {
+          container.innerHTML = `<div class="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center text-slate-400">Adicione uma meta para visualizar gráficos e projeções.</div>`;
+          return;
+        }
+
+        const goal = appState.goals.find(g => g.id === appState.selectedGoalId) || appState.goals[0];
+        const m = calculateGoalMetrics(goal);
+        const currSymbol = appState.currency === 'BRL' ? 'R$' : 'USDT';
+
+        const summaries = appState.goals.map(g => ({
+          goal: g,
+          metrics: calculateGoalMetrics(g)
+        }));
+
+        const mult = Number(appState.cycleMultiplier) || 1;
+        const baseRetirementTotalUSD = summaries.reduce((acc, s) => acc + s.metrics.projectedRetirementTotalUSD, 0);
+        const simulatedRetirementTotalUSD = baseRetirementTotalUSD * mult;
+        const totalCurrentPortfolioUSD = summaries.reduce((acc, s) => acc + s.metrics.totalPositionValueUSD, 0);
+
+        container.innerHTML = `
+          <!-- Seletor de Ativo para os Gráficos Individuais + Simulador de Ciclo -->
+          <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-xl space-y-5">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h2 class="text-lg sm:text-xl font-extrabold text-white">Simulador de Ciclo &amp; Projeção de Aposentadoria</h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  Ajuste o multiplicador de ciclo para simular quanto sua carteira consolidada valerá ao atingir todas as metas.
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-slate-400">Ativo nos Gráficos:</span>
+                <select onchange="window.selectGoal(this.value)"
+                  class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500">
+                  ${appState.goals.map(g =>
+                    `<option value="${g.id}" ${g.id === goal.id ? 'selected' : ''}>${g.name} (${g.symbol})</option>`
+                  ).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- Slider Multiplicador de Ciclo (1x a 20x) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              <div class="lg:col-span-7 p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                  <label for="cycle-multiplier-slider" class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Multiplicador sobre o Preço-Alvo do Ciclo
+                  </label>
+                  <span class="px-3 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-extrabold text-sm">
+                    ${mult.toFixed(1)}x
+                  </span>
+                </div>
+                <input id="cycle-multiplier-slider" type="range" min="1" max="20" step="0.5" value="${mult}"
+                  oninput="window.updateCycleMultiplier(this.value)"
+                  class="w-full accent-emerald-500 cursor-pointer" />
+                <div class="flex justify-between text-[10px] font-mono text-slate-500">
+                  <span>1.0x (Alvo Base)</span>
+                  <span>5.0x</span>
+                  <span>10.0x</span>
+                  <span>15.0x</span>
+                  <span>20.0x (Superciclo)</span>
+                </div>
+              </div>
+
+              <div class="lg:col-span-5 p-5 rounded-xl bg-gradient-to-br from-amber-500/15 to-emerald-500/10 border border-amber-500/30 space-y-1">
+                <div class="text-xs font-bold uppercase tracking-wider text-amber-300">Patrimônio Projetado na Aposentadoria (${mult.toFixed(1)}x)</div>
+                <div class="text-2xl sm:text-3xl font-extrabold text-white font-mono tabular-nums">
+                  ${formatUSDT(simulatedRetirementTotalUSD, 2)}
+                </div>
+                <div class="text-sm font-mono font-bold text-emerald-400 tabular-nums">
+                  ≈ ${formatBRL(simulatedRetirementTotalUSD * getEffectiveUsdtBrlRate(), 2)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 Gráficos Chart.js -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Gráfico 1: Evolução do Preço Médio -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg">
+              <div class="mb-3">
+                <h3 class="text-sm font-bold text-white">Preço Médio Pago (${goal.symbol} em ${currSymbol})</h3>
+                <p class="text-[11px] text-slate-400">Preço médio acumulado mês a mês vs cotação atual</p>
+              </div>
+              <div class="relative h-64 w-full">
+                <canvas id="chart-avg-price"></canvas>
+              </div>
+            </div>
+
+            <!-- Gráfico 2: Acúmulo de Moedas -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg">
+              <div class="mb-3">
+                <h3 class="text-sm font-bold text-white">Acúmulo de Moedas (${goal.symbol})</h3>
+                <p class="text-[11px] text-slate-400">Progresso real vs trajetória da meta (${formatCryptoQty(goal.targetAmount)})</p>
+              </div>
+              <div class="relative h-64 w-full">
+                <canvas id="chart-accumulation"></canvas>
+              </div>
+            </div>
+
+            <!-- Gráfico 3: Distribuição da Carteira -->
+            <div class="rounded-2xl bg-slate-900 border border-slate-800 p-5 shadow-lg">
+              <div class="mb-3">
+                <h3 class="text-sm font-bold text-white">Distribuição Atual da Carteira</h3>
+                <p class="text-[11px] text-slate-400">Proporção do patrimônio atual (${formatMoney(totalCurrentPortfolioUSD, 2)})</p>
+              </div>
+              <div class="relative h-64 w-full">
+                <canvas id="chart-portfolio-donut"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabela Resumo Consolidado Multi-Cripto -->
+          <div class="rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-slate-800">
+              <h3 class="text-base font-bold text-white">Somatório Consolidado de Todas as Metas</h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-950/90 border-b border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <th class="py-3.5 px-4">Ativo</th>
+                    <th class="py-3.5 px-4">Acumulado / Meta</th>
+                    <th class="py-3.5 px-4">Preço Médio</th>
+                    <th class="py-3.5 px-4">Valor Hoje</th>
+                    <th class="py-3.5 px-4">Alvo Ciclo (${mult.toFixed(1)}x)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/70 text-xs sm:text-sm tabular-nums">
+                  ${summaries.map(({ goal: g, metrics: gm }) => `
+                    <tr class="hover:bg-slate-800/40">
+                      <td class="py-3.5 px-4 font-bold text-white">${g.name}</td>
+                      <td class="py-3.5 px-4 font-mono text-slate-300">${formatCryptoQty(gm.totalAccumulatedCoins)} / ${formatCryptoQty(g.targetAmount, g.symbol)}</td>
+                      <td class="py-3.5 px-4 font-mono text-emerald-400">${gm.avgBuyPriceUSD > 0 ? formatMoney(gm.avgBuyPriceUSD) : '--'}</td>
+                      <td class="py-3.5 px-4 font-mono text-white font-semibold">${formatMoney(gm.totalPositionValueUSD, 2)}</td>
+                      <td class="py-3.5 px-4 font-mono text-amber-400 font-bold">${formatMoney(gm.projectedRetirementTotalUSD * mult, 2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+
+        renderSafeCharts(goal, m, summaries);
+      }
+
+      window.updateCycleMultiplier = function (val) {
+        const num = parseFloat(val);
+        appState.cycleMultiplier = !isNaN(num) && num >= 1 ? num : 1.0;
+        saveState();
+        renderChartsAndRetirementTab();
+      };
+
+      // =====================================================================
+      // 11. RENDERIZAÇÃO SEGURA DOS GRÁFICOS CHART.JS
+      // =====================================================================
+      function destroyChartSafe(key) {
+        try {
+          if (chartInstances[key] && typeof chartInstances[key].destroy === 'function') {
+            chartInstances[key].destroy();
+          }
+        } catch (e) {
+          // Ignora erro na destruição
+        }
+        chartInstances[key] = null;
+      }
+
+      function renderSafeCharts(goal, metrics, summaries) {
+        destroyChartSafe('avgPriceChart');
+        destroyChartSafe('accumulationChart');
+        destroyChartSafe('portfolioDonutChart');
+
+        if (typeof window.Chart === 'undefined') {
+          console.warn('Chart.js indisponível no momento; exibindo apenas tabelas numéricas.');
+          return;
+        }
+
+        const mult = getMultiplier();
+        const isBRL = appState.currency === 'BRL';
+        const labels = metrics.schedule.map(s => `M${s.month}`);
+
+        // 1. Gráfico de Preço Médio
+        try {
+          const ctx1 = document.getElementById('chart-avg-price');
+          if (ctx1) {
+            const avgSeries = metrics.schedule.map(s => s.cumAvgPriceUSD > 0 ? Number((s.cumAvgPriceUSD * mult).toFixed(4)) : null);
+            const paidSeries = metrics.schedule.map(s => s.pricePaidUSD > 0 ? Number((s.pricePaidUSD * mult).toFixed(4)) : null);
+            const liveLine = metrics.schedule.map(() => Number((metrics.currentPriceUSD * mult).toFixed(4)));
+
+            chartInstances.avgPriceChart = new window.Chart(ctx1, {
+              type: 'line',
+              data: {
+                labels,
+                datasets: [
+                  {
+                    label: 'Preço Médio Acumulado',
+                    data: avgSeries,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderWidth: 2.5,
+                    tension: 0.3,
+                    fill: true,
+                    spanGaps: true
+                  },
+                  {
+                    label: 'Preço Pago Mês',
+                    data: paidSeries,
+                    borderColor: '#38bdf8',
+                    borderDash: [4, 4],
+                    borderWidth: 2,
+                    spanGaps: true
+                  },
+                  {
+                    label: 'Cotação Atual',
+                    data: liveLine,
+                    borderColor: '#f59e0b',
+                    borderDash: [6, 6],
+                    borderWidth: 1.5,
+                    pointRadius: 0
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 10 } } } },
+                scales: {
+                  x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } },
+                  y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } }
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Erro ao renderizar gráfico de preço médio:', err);
+        }
+
+        // 2. Gráfico de Acúmulo
+        try {
+          const ctx2 = document.getElementById('chart-accumulation');
+          if (ctx2) {
+            chartInstances.accumulationChart = new window.Chart(ctx2, {
+              type: 'bar',
+              data: {
+                labels,
+                datasets: [
+                  {
+                    label: `Acumulado (${goal.symbol})`,
+                    data: metrics.schedule.map(s => Number(s.cumCoins.toFixed(2))),
+                    backgroundColor: goal.color || '#8b5cf6',
+                    borderRadius: 5,
+                    order: 2
+                  },
+                  {
+                    type: 'line',
+                    label: 'Meta Planejada',
+                    data: metrics.schedule.map(s => Number(s.plannedCumQty.toFixed(2))),
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    order: 1
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 10 } } } },
+                scales: {
+                  x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } },
+                  y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(51,65,85,0.3)' } }
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Erro ao renderizar gráfico de acúmulo:', err);
+        }
+
+        // 3. Gráfico Rosca Carteira
+        try {
+          const ctx3 = document.getElementById('chart-portfolio-donut');
+          if (ctx3) {
+            const values = summaries.map(s => Math.max(0.01, Number(convertFromUSD(s.metrics.totalPositionValueUSD).toFixed(2))));
+            chartInstances.portfolioDonutChart = new window.Chart(ctx3, {
+              type: 'doughnut',
+              data: {
+                labels: summaries.map(s => s.goal.symbol),
+                datasets: [{
+                  data: values,
+                  backgroundColor: summaries.map(s => s.goal.color || '#10b981'),
+                  borderColor: '#0f172a',
+                  borderWidth: 3
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                  legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11 } } },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => {
+                        const prefix = isBRL ? 'R$ ' : '$ ';
+                        const suffix = isBRL ? '' : ' USDT';
+                        return ` ${ctx.label}: ${prefix}${Number(ctx.parsed).toFixed(2)}${suffix}`;
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('Erro ao renderizar gráfico donut:', err);
+        }
+      }
+
+      // =====================================================================
+      // 12. EDIÇÃO DOS REGISTROS MENSAIS
+      // =====================================================================
+      window.updateMonthlyRecord = function (goalId, monthIndex, field, rawValue) {
+        const goal = appState.goals.find(g => g.id === goalId);
+        if (!goal || !goal.monthlyRecords[monthIndex]) return;
+
+        const val = parseFloat(rawValue);
+        const cleanVal = isNaN(val) || val < 0 ? 0 : val;
+
+        if (field === 'boughtQty') {
+          goal.monthlyRecords[monthIndex].boughtQty = cleanVal;
+          if (cleanVal > 0 && goal.monthlyRecords[monthIndex].pricePaidUSD === 0) {
+            goal.monthlyRecords[monthIndex].pricePaidUSD = Number(appState.pricesUSD[goal.symbol]) || 0;
+            goal.monthlyRecords[monthIndex].fxRateBRL = getEffectiveUsdtBrlRate();
+          }
+        } else if (field === 'pricePaid') {
+          goal.monthlyRecords[monthIndex].pricePaidUSD = convertToUSD(cleanVal);
+        } else if (field === 'fxRateBRL') {
+          goal.monthlyRecords[monthIndex].fxRateBRL = cleanVal > 0 ? cleanVal : getEffectiveUsdtBrlRate();
+        }
+
+        saveState();
+        renderAll();
+      };
+
+      window.fillMonthTargetQty = function (goalId, monthIndex, plannedQty) {
+        const goal = appState.goals.find(g => g.id === goalId);
+        if (!goal || !goal.monthlyRecords[monthIndex]) return;
+
+        goal.monthlyRecords[monthIndex].boughtQty = Number(Number(plannedQty).toFixed(4));
+        if (goal.monthlyRecords[monthIndex].pricePaidUSD === 0) {
+          goal.monthlyRecords[monthIndex].pricePaidUSD = Number(appState.pricesUSD[goal.symbol]) || 0;
+          goal.monthlyRecords[monthIndex].fxRateBRL = getEffectiveUsdtBrlRate();
+        }
+        saveState();
+        renderAll();
+      };
+
+      window.fillMonthLivePrice = function (goalId, monthIndex) {
+        const goal = appState.goals.find(g => g.id === goalId);
+        if (!goal || !goal.monthlyRecords[monthIndex]) return;
+
+        const liveUSD = Number(appState.pricesUSD[goal.symbol]) || 0;
+        goal.monthlyRecords[monthIndex].pricePaidUSD = liveUSD;
+        goal.monthlyRecords[monthIndex].fxRateBRL = getEffectiveUsdtBrlRate();
+        saveState();
+        renderAll();
+        showToast(`Mês ${monthIndex + 1} preenchido com cotação atual (${formatUSDT(liveUSD)})!`, 'success');
+      };
+
+      window.autoFillNextEmptyMonth = function (goalId) {
+        const goal = appState.goals.find(g => g.id === goalId);
+        if (!goal) return;
+
+        const emptyIdx = goal.monthlyRecords.findIndex(r => !r.boughtQty || r.boughtQty <= 0);
+        if (emptyIdx === -1) {
+          showToast('Todos os meses já possuem compras registradas!', 'info');
+          return;
+        }
+
+        const m = calculateGoalMetrics(goal);
+        goal.monthlyRecords[emptyIdx].boughtQty = Number(m.baseMonthlyTargetQty.toFixed(4));
+        goal.monthlyRecords[emptyIdx].pricePaidUSD = m.currentPriceUSD;
+        goal.monthlyRecords[emptyIdx].fxRateBRL = getEffectiveUsdtBrlRate();
+
+        saveState();
+        renderAll();
+        showToast(`Mês ${emptyIdx + 1} registrado (${formatCryptoQty(m.baseMonthlyTargetQty, goal.symbol)})!`, 'success');
+      };
+
+      window.updateRetirementPrice = function (goalId, rawDisplayVal) {
+        const goal = appState.goals.find(g => g.id === goalId);
+        if (!goal) return;
+        const val = parseFloat(rawDisplayVal);
+        goal.retirementTargetPriceUSD = isNaN(val) || val < 0 ? 0 : convertToUSD(val);
+        saveState();
+        renderAll();
+      };
+
+      // =====================================================================
+      // 13. MODAL CRIAR / EDITAR META
+      // =====================================================================
+      window.openGoalModal = function (goalId = null, preselectSymbol = null) {
+        const modal = document.getElementById('goal-modal');
+        const titleEl = document.getElementById('goal-modal-title');
+        const selectEl = document.getElementById('form-asset-select');
+        const currLabel = document.getElementById('form-currency-label');
+        if (!modal || !selectEl) return;
+
+        currLabel.textContent = appState.currency === 'BRL' ? 'R$' : 'USDT';
+
+        selectEl.innerHTML = SUPPORTED_CRYPTOS.map(c =>
+          `<option value="${c.symbol}">${c.name} (${c.symbol})</option>`
+        ).join('') + `<option value="CUSTOM">+ Adicionar Outra Cripto Personalizada</option>`;
+
+        document.getElementById('custom-asset-fields').classList.add('hidden');
+
+        if (goalId) {
+          const goal = appState.goals.find(g => g.id === goalId);
+          if (!goal) return;
+          titleEl.textContent = `Editar Meta: ${goal.name}`;
+          document.getElementById('form-goal-id').value = goal.id;
+
+          if (SUPPORTED_CRYPTOS.some(c => c.symbol === goal.symbol)) {
+            selectEl.value = goal.symbol;
+          } else {
+            selectEl.value = 'CUSTOM';
+            document.getElementById('custom-asset-fields').classList.remove('hidden');
+            document.getElementById('form-custom-symbol').value = goal.symbol;
+            document.getElementById('form-custom-name').value = goal.name;
+            document.getElementById('form-custom-price').value = appState.pricesUSD[goal.symbol] || 1;
+          }
+
+          document.getElementById('form-initial-balance').value = goal.initialBalance;
+          document.getElementById('form-target-amount').value = goal.targetAmount;
+          document.getElementById('form-months').value = goal.monthsCount;
+          document.getElementById('form-retirement-price').value = Number(convertFromUSD(goal.retirementTargetPriceUSD).toFixed(2));
+        } else {
+          titleEl.textContent = 'Nova Meta de Acumulação (DCA)';
+          document.getElementById('form-goal-id').value = '';
+          selectEl.value = preselectSymbol || 'SOL';
+          document.getElementById('form-initial-balance').value = '0';
+          document.getElementById('form-target-amount').value = '100';
+          document.getElementById('form-months').value = '12';
+          const pUSD = Number(appState.pricesUSD[selectEl.value]) || 10;
+          document.getElementById('form-retirement-price').value = Number(convertFromUSD(pUSD * 3).toFixed(2));
+        }
+
+        updateModalLivePreview();
+        modal.classList.remove('hidden');
+      };
+
+      window.closeGoalModal = function () {
+        const modal = document.getElementById('goal-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.handleAssetSelectChange = function () {
+        const val = document.getElementById('form-asset-select').value;
+        const customFields = document.getElementById('custom-asset-fields');
+        if (val === 'CUSTOM') {
+          customFields.classList.remove('hidden');
+        } else {
+          customFields.classList.add('hidden');
+          const pUSD = Number(appState.pricesUSD[val]) || 10;
+          document.getElementById('form-retirement-price').value = Number(convertFromUSD(pUSD * 3).toFixed(2));
+        }
+        updateModalLivePreview();
+      };
+
+      function updateModalLivePreview() {
+        const previewEl = document.getElementById('modal-live-preview');
+        if (!previewEl) return;
+
+        const initBal = Math.max(0, parseFloat(document.getElementById('form-initial-balance').value) || 0);
+        const target = Math.max(0, parseFloat(document.getElementById('form-target-amount').value) || 0);
+        const months = Math.max(1, parseInt(document.getElementById('form-months').value, 10) || 12);
+        const retPriceDisplay = Math.max(0, parseFloat(document.getElementById('form-retirement-price').value) || 0);
+
+        const sel = document.getElementById('form-asset-select').value;
+        const sym = sel === 'CUSTOM'
+          ? (document.getElementById('form-custom-symbol').value.trim().toUpperCase() || 'CRIPTO')
+          : sel;
+
+        const toBuy = Math.max(0, target - initBal);
+        const perMonth = toBuy / months;
+        const liveUSD = sel === 'CUSTOM'
+          ? (parseFloat(document.getElementById('form-custom-price').value) || Number(appState.pricesUSD[sym]) || 0)
+          : (Number(appState.pricesUSD[sym]) || 0);
+
+        const monthlyCostUSD = perMonth * liveUSD;
+        const retTotalUSD = target * convertToUSD(retPriceDisplay);
+
+        previewEl.innerHTML = `
+          <div class="font-bold text-emerald-300">Resumo Automático do Plano:</div>
+          <div>• Você precisa comprar <strong>${formatCryptoQty(toBuy, sym)}</strong> em <strong>${months} meses</strong> = <strong>${formatCryptoQty(perMonth, sym)}/mês</strong>.</div>
+          ${liveUSD > 0 ? `<div>• Custo mensal estimado hoje: <strong>${formatMoney(monthlyCostUSD, 2)}/mês</strong>.</div>` : ''}
+          <div>• Patrimônio projetado na aposentadoria: <strong>${formatMoney(retTotalUSD, 2)}</strong>.</div>
+        `;
+      }
+
+      ['form-initial-balance', 'form-target-amount', 'form-months', 'form-retirement-price', 'form-custom-symbol', 'form-custom-price'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateModalLivePreview);
+      });
+
+      window.saveGoalForm = function (e) {
+        e.preventDefault();
+
+        const existingId = document.getElementById('form-goal-id').value;
+        const selectedAsset = document.getElementById('form-asset-select').value;
+
+        let symbol, name, binancePair, fallbackPair, coingeckoId, color;
+
+        if (selectedAsset === 'CUSTOM') {
+          symbol = document.getElementById('form-custom-symbol').value.trim().toUpperCase();
+          name = document.getElementById('form-custom-name').value.trim() || symbol;
+          const customPrice = parseFloat(document.getElementById('form-custom-price').value);
+          if (!symbol) {
+            showToast('Informe o ticker da criptomoeda.', 'error');
+            return;
+          }
+          if (!isNaN(customPrice) && customPrice > 0) {
+            appState.pricesUSD[symbol] = customPrice;
+          } else if (!appState.pricesUSD[symbol]) {
+            appState.pricesUSD[symbol] = 1.00;
+          }
+          binancePair = `${symbol}USDT`;
+          fallbackPair = null;
+          coingeckoId = symbol.toLowerCase();
+          const palette = ['#ec4899', '#14b8a6', '#6366f1', '#f43f5e', '#84cc16'];
+          color = palette[appState.goals.length % palette.length];
+        } else {
+          const meta = SUPPORTED_CRYPTOS.find(c => c.symbol === selectedAsset);
+          symbol = meta.symbol;
+          name = meta.name;
+          binancePair = meta.binancePair;
+          fallbackPair = meta.fallbackPair;
+          coingeckoId = meta.coingeckoId;
+          color = meta.color;
+        }
+
+        const initialBalance = Math.max(0, parseFloat(document.getElementById('form-initial-balance').value) || 0);
+        const targetAmount = Math.max(0.000001, parseFloat(document.getElementById('form-target-amount').value) || 100);
+        const monthsCount = Math.min(120, Math.max(1, parseInt(document.getElementById('form-months').value, 10) || 12));
+        const retirementPriceDisplay = Math.max(0, parseFloat(document.getElementById('form-retirement-price').value) || 0);
+        const retirementTargetPriceUSD = convertToUSD(retirementPriceDisplay);
+
+        if (existingId) {
+          const goal = appState.goals.find(g => g.id === existingId);
+          if (goal) {
+            goal.symbol = symbol;
+            goal.name = name;
+            goal.binancePair = binancePair;
+            goal.fallbackPair = fallbackPair;
+            goal.coingeckoId = coingeckoId;
+            goal.color = color;
+            goal.initialBalance = initialBalance;
+            goal.targetAmount = targetAmount;
+            goal.retirementTargetPriceUSD = retirementTargetPriceUSD;
+
+            const updatedRecs = [];
+            for (let i = 0; i < monthsCount; i++) {
+              if (goal.monthlyRecords[i]) {
+                updatedRecs.push(goal.monthlyRecords[i]);
+              } else {
+                updatedRecs.push({
+                  month: i + 1,
+                  label: getFutureMonthLabel(i),
+                  boughtQty: 0,
+                  pricePaidUSD: 0,
+                  fxRateBRL: getEffectiveUsdtBrlRate()
+                });
+              }
+            }
+            goal.monthsCount = monthsCount;
+            goal.monthlyRecords = updatedRecs;
+            appState.selectedGoalId = goal.id;
+          }
+          showToast(`Meta de ${symbol} atualizada!`, 'success');
+        } else {
+          const newId = `${symbol}_${Date.now()}`;
+          const monthlyRecords = Array.from({ length: monthsCount }, (_, i) => ({
+            month: i + 1,
+            label: getFutureMonthLabel(i),
+            boughtQty: 0,
+            pricePaidUSD: 0,
+            fxRateBRL: getEffectiveUsdtBrlRate()
+          }));
+
+          appState.goals.push({
+            id: newId,
+            symbol,
+            name,
+            binancePair,
+            fallbackPair,
+            coingeckoId,
+            color,
+            initialBalance,
+            targetAmount,
+            monthsCount,
+            retirementTargetPriceUSD,
+            monthlyRecords
+          });
+          appState.selectedGoalId = newId;
+          appState.mainTab = 'DCA';
+          showToast(`Meta de ${symbol} adicionada!`, 'success');
+        }
+
+        saveState();
+        window.closeGoalModal();
+        renderAll();
+      };
+
+      // =====================================================================
+      // 14. EXCLUSÃO, BACKUP JSON, CSV & CONFIRMAÇÃO
+      // =====================================================================
+      window.confirmDeleteGoal = function (goalId) {
+        const goal = appState.goals.find(g => g.id === goalId);
+        if (!goal) return;
+
+        openConfirmModal(
+          `Remover ${goal.name}?`,
+          `Deseja excluir a meta de ${goal.name} e seu histórico mensal?`,
+          () => {
+            appState.goals = appState.goals.filter(g => g.id !== goalId);
+            appState.selectedGoalId = appState.goals[0] ? appState.goals[0].id : '';
+            saveState();
+            renderAll();
+            showToast(`${goal.symbol} removido.`, 'info');
+          }
+        );
+      };
+
+      window.openResetModal = function () {
+        openConfirmModal(
+          'Restaurar Exemplo Padrão?',
+          'Isso restaurará as metas iniciais em USDT (10.000 Polygon em 12 meses + BNB). Continuar?',
+          () => {
+            appState.goals = getDefaultGoals();
+            appState.selectedGoalId = 'POL';
+            appState.mainTab = 'DCA';
+            appState.currency = 'USDT';
+            saveState();
+            window.setCurrency('USDT');
+            showToast('Exemplo padrão restaurado!', 'success');
+          }
+        );
+      };
+
+      function openConfirmModal(title, message, onConfirm) {
+        const modal = document.getElementById('confirm-modal');
+        document.getElementById('confirm-modal-title').textContent = title;
+        document.getElementById('confirm-modal-message').textContent = message;
+        const btn = document.getElementById('confirm-modal-btn');
+        btn.onclick = () => {
+          window.closeConfirmModal();
+          onConfirm();
+        };
+        modal.classList.remove('hidden');
+      }
+
+      window.closeConfirmModal = function () {
+        const modal = document.getElementById('confirm-modal');
+        if (modal) modal.classList.add('hidden');
+      };
+
+      window.toggleDataMenu = function () {
+        const menu = document.getElementById('data-dropdown');
+        if (menu) menu.classList.toggle('hidden');
+      };
+
+      window.exportJSON = function () {
+        try {
+          const dataStr = JSON.stringify(appState, null, 2);
+          const blob = new Blob([dataStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `rg_crypto_dca_backup_${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast('Backup JSON exportado!', 'success');
+        } catch (err) {
+          showToast('Não foi possível baixar o arquivo neste navegador.', 'error');
+        }
+      };
+
+      window.importJSON = function (event) {
+        const file = event.target && event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const parsed = JSON.parse(e.target.result);
+            if (parsed && Array.isArray(parsed.goals)) {
+              SafeStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+              loadState();
+              window.setCurrency(appState.currency);
+              showToast('Backup importado com sucesso!', 'success');
+            } else {
+              showToast('Arquivo JSON inválido.', 'error');
+            }
+          } catch (err) {
+            showToast('Erro ao processar arquivo JSON.', 'error');
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      window.exportCSV = function () {
+        try {
+          const rows = [
+            ['Cripto', 'Simbolo', 'Mes', 'Data', 'Meta_Mensal', 'Comprado', 'Preco_Pago_USDT', 'Cambio_BRL_USDT', 'Investido_USDT', 'Investido_BRL', 'Preco_Medio_USDT', 'Saldo_Acumulado']
+          ];
+          for (const g of appState.goals) {
+            const m = calculateGoalMetrics(g);
+            for (const s of m.schedule) {
+              rows.push([
+                g.name,
+                g.symbol,
+                s.month,
+                s.label,
+                s.plannedQty.toFixed(4),
+                s.boughtQty.toFixed(4),
+                s.pricePaidUSD.toFixed(4),
+                s.fxRateBRL.toFixed(4),
+                s.monthCostUSD.toFixed(2),
+                s.monthCostBRL.toFixed(2),
+                s.cumAvgPriceUSD.toFixed(4),
+                s.cumCoins.toFixed(4)
+              ]);
+            }
+          }
+          const csvContent = '\uFEFF' + rows.map(r => r.join(';')).join('\n');
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `rg_crypto_dca_planilha_${new Date().toISOString().slice(0, 10)}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showToast('Planilha CSV exportada!', 'success');
+        } catch (err) {
+          showToast('Erro ao exportar planilha CSV.', 'error');
+        }
+      };
+
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        const colors = {
+          success: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-200',
+          error: 'bg-rose-950/95 border-rose-500/50 text-rose-200',
+          info: 'bg-slate-900/95 border-slate-700 text-slate-200'
+        };
+        toast.className = `px-4 py-3 rounded-xl border shadow-2xl text-xs font-semibold backdrop-blur-md transition-all duration-300 ${colors[type] || colors.info}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(8px)';
+          setTimeout(() => toast.remove(), 300);
+        }, 3200);
+      }
+
+      document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('data-dropdown');
+        if (dropdown && !dropdown.classList.contains('hidden')) {
+          if (!e.target.closest('#data-dropdown') && !e.target.closest('#btn-data-menu')) {
+            dropdown.classList.add('hidden');
+          }
+        }
+      });
+
+      // =====================================================================
+      // 15. INICIALIZAÇÃO IMEDIATA E SEGURA
+      // =====================================================================
+      function initApp() {
+        loadState();
+        updateApiStatusUI();
+        window.setCurrency(appState.currency);
+        window.fetchAllPrices(false);
+
+        setInterval(() => {
+          window.fetchAllPrices(false);
+        }, 12000);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+      } else {
+        initApp();
+      }
+    })();
+  </script>
+</body>
+</html>

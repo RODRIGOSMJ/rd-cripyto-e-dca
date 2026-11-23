@@ -1,0 +1,195 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // GLOBAL HARDENED PRIMITIVES
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // VALIDATION BLUEPRINTS (ANTI-UPDATE-GAP)
+    // =========================================================================
+    function isValidConverter(c) {
+      return c is map
+        && c.keys().hasAll([
+          'direction', 'amountBRL', 'amountUSDT', 'exchangeFeePct',
+          'pixSpreadPct', 'networkFeeUSDT', 'targetSymbol', 'targetGoalId', 'targetMonthIndex'
+        ])
+        && c.keys().hasOnly([
+          'direction', 'amountBRL', 'amountUSDT', 'exchangeFeePct',
+          'pixSpreadPct', 'networkFeeUSDT', 'targetSymbol', 'targetGoalId', 'targetMonthIndex'
+        ])
+        && c.direction is string && c.direction in ['BRL_TO_USDT', 'USDT_TO_BRL']
+        && c.amountBRL is number && c.amountBRL >= 0 && c.amountBRL <= 1000000000000
+        && c.amountUSDT is number && c.amountUSDT >= 0 && c.amountUSDT <= 1000000000000
+        && c.exchangeFeePct is number && c.exchangeFeePct >= 0 && c.exchangeFeePct <= 50
+        && c.pixSpreadPct is number && c.pixSpreadPct >= 0 && c.pixSpreadPct <= 50
+        && c.networkFeeUSDT is number && c.networkFeeUSDT >= 0 && c.networkFeeUSDT <= 10000
+        && c.targetSymbol is string && c.targetSymbol.size() >= 1 && c.targetSymbol.size() <= 20
+        && c.targetGoalId is string && c.targetGoalId.size() <= 128
+        && c.targetMonthIndex is int && c.targetMonthIndex >= 0 && c.targetMonthIndex <= 120;
+    }
+
+    function isValidUserSettings(data, userId) {
+      return data.keys().hasAll([
+          'ownerId', 'currency', 'selectedGoalId', 'manualFxOverride',
+          'manualUsdtBrlRate', 'retirementGoalUSD', 'cycleMultiplier',
+          'converter', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'currency', 'selectedGoalId', 'manualFxOverride',
+          'manualUsdtBrlRate', 'retirementGoalUSD', 'cycleMultiplier',
+          'converter', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.currency is string && data.currency.size() <= 10 && data.currency in ['USDT', 'HYBRID', 'BRL']
+        && data.selectedGoalId is string && data.selectedGoalId.size() <= 128
+        && data.manualFxOverride is bool
+        && data.manualUsdtBrlRate is number && data.manualUsdtBrlRate > 0 && data.manualUsdtBrlRate <= 1000
+        && data.retirementGoalUSD is number && data.retirementGoalUSD >= 0 && data.retirementGoalUSD <= 10000000000
+        && data.cycleMultiplier is number && data.cycleMultiplier >= 1 && data.cycleMultiplier <= 20
+        && isValidConverter(data.converter)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCryptoGoal(data, userId, goalId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'symbol', 'name', 'binancePair', 'fallbackPair',
+          'coingeckoId', 'color', 'initialBalance', 'targetAmount', 'monthsCount',
+          'retirementTargetPriceUSD', 'customPriceUSD', 'monthlyRecords',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'symbol', 'name', 'binancePair', 'fallbackPair',
+          'coingeckoId', 'color', 'initialBalance', 'targetAmount', 'monthsCount',
+          'retirementTargetPriceUSD', 'customPriceUSD', 'monthlyRecords',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == goalId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.symbol is string && data.symbol.size() >= 1 && data.symbol.size() <= 20 && data.symbol.matches('^[A-Z0-9]+$')
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.binancePair is string && data.binancePair.size() >= 1 && data.binancePair.size() <= 30
+        && data.fallbackPair is string && data.fallbackPair.size() <= 30
+        && data.coingeckoId is string && data.coingeckoId.size() <= 80
+        && data.color is string && data.color.size() <= 20 && data.color.matches('^#[0-9a-fA-F]{6}$')
+        && data.initialBalance is number && data.initialBalance >= 0 && data.initialBalance <= 1000000000000
+        && data.targetAmount is number && data.targetAmount > 0 && data.targetAmount <= 1000000000000
+        && data.monthsCount is int && data.monthsCount >= 1 && data.monthsCount <= 120
+        && data.retirementTargetPriceUSD is number && data.retirementTargetPriceUSD >= 0 && data.retirementTargetPriceUSD <= 1000000000
+        && data.customPriceUSD is number && data.customPriceUSD >= 0 && data.customPriceUSD <= 1000000000
+        && data.monthlyRecords is list && data.monthlyRecords.size() >= 1 && data.monthlyRecords.size() <= 120
+        && data.monthlyRecords[0] is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // COLLECTION: /users/{userId}
+    // =========================================================================
+    match /users/{userId} {
+      allow get: if isVerifiedOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserSettings(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserSettings(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Update Preferences & Retirement Target
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'currency', 'selectedGoalId', 'manualFxOverride',
+            'manualUsdtBrlRate', 'retirementGoalUSD', 'cycleMultiplier',
+            'converter', 'updatedAt'
+          ])
+        );
+
+      allow delete: if isVerifiedOwner(userId) && isValidId(userId);
+
+      // =======================================================================
+      // SUBCOLLECTION: /users/{userId}/goals/{goalId}
+      // =======================================================================
+      match /goals/{goalId} {
+        allow get: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(goalId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && get(/databases/$(database)/documents/users/$(userId)).data.ownerId == request.auth.uid;
+
+        allow list: if isVerifiedOwner(userId)
+          && existing().ownerId == request.auth.uid;
+
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(goalId)
+          && isValidCryptoGoal(incoming(), userId, goalId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/users/$(userId))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.ownerId == request.auth.uid;
+
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(goalId)
+          && isValidCryptoGoal(incoming(), userId, goalId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && get(/databases/$(database)/documents/users/$(userId)).data.ownerId == request.auth.uid
+          && (
+            // Action: Update Goal Parameters & Monthly DCA Purchases
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'symbol', 'name', 'binancePair', 'fallbackPair', 'coingeckoId',
+              'color', 'initialBalance', 'targetAmount', 'monthsCount',
+              'retirementTargetPriceUSD', 'customPriceUSD', 'monthlyRecords',
+              'updatedAt'
+            ])
+          );
+
+        allow delete: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(goalId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && get(/databases/$(database)/documents/users/$(userId)).data.ownerId == request.auth.uid;
+      }
+    }
+  }
+}

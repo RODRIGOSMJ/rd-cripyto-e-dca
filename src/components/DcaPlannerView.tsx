@@ -31,11 +31,12 @@ import {
 import { DualMoney } from './DualMoney';
 import { NumericInput } from './NumericInput';
 import { CryptoLogo } from './CryptoLogo';
+import { PartialPurchaseModal } from './PartialPurchaseModal';
 
 Chart.register(...registerables);
 
 type DcaChartMode = 'SPENT' | 'ACCUMULATION' | 'AVG_PRICE';
-type MonthFilter = 'ALL' | 'PENDING' | 'DONE';
+type MonthFilter = 'ALL' | 'PENDING' | 'PARTIAL' | 'DONE';
 type ScheduleViewMode = 'GRID' | 'TABLE';
 
 interface DcaPlannerViewProps {
@@ -50,6 +51,8 @@ interface DcaPlannerViewProps {
     field: 'boughtQty' | 'pricePaid',
     numValue: number
   ) => void;
+  onAddPartialPurchase: (goalId: string, monthIndex: number, qty: number, priceDisplay: number) => void;
+  onRemovePartialPurchase: (goalId: string, monthIndex: number, entryId: string) => void;
   onQuickCompleteMonth: (goalId: string, monthIndex: number, plannedQty: number) => void;
   onAutoFillNextEmptyMonth: (goalId: string) => void;
   onGoToConverter: () => void;
@@ -63,6 +66,8 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
   onDeleteGoal,
   onUpdateRetirementPrice,
   onUpdateMonthlyRecordNumber,
+  onAddPartialPurchase,
+  onRemovePartialPurchase,
   onQuickCompleteMonth,
   onAutoFillNextEmptyMonth,
   onGoToConverter,
@@ -75,6 +80,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
     getNextActiveMonthIndex(state.goals, state.pricesUSD, getEffectiveUsdtBrlRate(state))
   );
   const [budgetDetailsOpen, setBudgetDetailsOpen] = useState(false);
+  const [partialModalMonthIndex, setPartialModalMonthIndex] = useState<number | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -283,10 +289,14 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
   }
 
   const filteredSchedule = m.schedule.filter((row) => {
-    if (monthFilter === 'DONE') return row.boughtQty > 0;
-    if (monthFilter === 'PENDING') return row.boughtQty <= 0;
+    if (monthFilter === 'DONE') return row.isCompleted;
+    if (monthFilter === 'PARTIAL') return row.isPartial;
+    if (monthFilter === 'PENDING') return !row.isCompleted;
     return true;
   });
+
+  const activePartialRow =
+    partialModalMonthIndex !== null ? m.schedule[partialModalMonthIndex] || null : null;
 
   const amountForConverterUSD =
     monthlyBudget.totalRemainingToBuyUSD > 0.0001
@@ -397,24 +407,35 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
 
         {/* Chips rápidos das criptos do mês em linha única rolável */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          {monthlyBudget.items.map((item) => (
-            <button
-              key={item.goalId}
-              type="button"
-              onClick={() => onSelectGoal(item.goalId)}
-              title={`${item.name}: ${formatCryptoQty(item.plannedQty, item.symbol)} × ${formatUSDT(item.currentPriceUSD)} = ${formatUSDT(item.plannedCostUSD, 2)}`}
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] transition-colors tabular-nums whitespace-nowrap shrink-0 ${
-                item.isCompleted
-                  ? 'bg-emerald-950/35 border-emerald-500/35 text-emerald-300'
-                  : 'bg-[#0e080b] border-red-950/70 hover:border-[#E11D2E]/60 text-slate-200'
-              }`}
-            >
-              <CryptoLogo symbol={item.symbol} color={item.color} size={14} />
-              <span className="font-bold">{item.symbol}</span>
-              <span className="font-mono text-sky-300">{formatUSDT(item.plannedCostUSD, 2)}</span>
-              {item.isCompleted && <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
-            </button>
-          ))}
+          {monthlyBudget.items.map((item) => {
+            const isPartialItem = item.boughtQty > 0 && !item.isCompleted;
+            return (
+              <button
+                key={item.goalId}
+                type="button"
+                onClick={() => onSelectGoal(item.goalId)}
+                title={
+                  isPartialItem
+                    ? `${item.name} (Parcial): comprado ${formatCryptoQty(item.boughtQty, item.symbol)} de ${formatCryptoQty(item.plannedQty, item.symbol)} · Falta ${formatCryptoQty(item.remainingQty, item.symbol)} (${formatUSDT(item.remainingCostUSD, 2)})`
+                    : `${item.name}: ${formatCryptoQty(item.plannedQty, item.symbol)} × ${formatUSDT(item.currentPriceUSD)} = ${formatUSDT(item.plannedCostUSD, 2)}`
+                }
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] transition-colors tabular-nums whitespace-nowrap shrink-0 ${
+                  item.isCompleted
+                    ? 'bg-emerald-950/35 border-emerald-500/35 text-emerald-300'
+                    : isPartialItem
+                      ? 'bg-amber-950/35 border-amber-500/45 text-amber-200'
+                      : 'bg-[#0e080b] border-red-950/70 hover:border-[#E11D2E]/60 text-slate-200'
+                }`}
+              >
+                <CryptoLogo symbol={item.symbol} color={item.color} size={14} />
+                <span className="font-bold">{item.symbol}</span>
+                <span className={`font-mono ${isPartialItem ? 'text-amber-300' : 'text-sky-300'}`}>
+                  {isPartialItem ? `falta ${formatUSDT(item.remainingCostUSD, 2)}` : formatUSDT(item.plannedCostUSD, 2)}
+                </span>
+                {item.isCompleted && <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
+              </button>
+            );
+          })}
         </div>
 
         {/* Detalhamento Expandível por Cripto */}
@@ -693,6 +714,9 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                   [
                     { id: 'ALL', label: `Todos (${m.schedule.length})` },
                     { id: 'PENDING', label: `Faltam (${m.remainingMonths})` },
+                    ...(m.monthsPartial > 0
+                      ? [{ id: 'PARTIAL' as MonthFilter, label: `Parciais (${m.monthsPartial})` }]
+                      : []),
                     { id: 'DONE', label: `Feitos (${m.monthsCompleted})` }
                   ] as Array<{ id: MonthFilter; label: string }>
                 ).map((f) => (
@@ -701,7 +725,11 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                     type="button"
                     onClick={() => setMonthFilter(f.id)}
                     className={`px-1.5 py-0.5 rounded font-semibold transition-colors whitespace-nowrap ${
-                      monthFilter === f.id ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+                      monthFilter === f.id
+                        ? f.id === 'PARTIAL'
+                          ? 'bg-amber-500/25 text-amber-200'
+                          : 'bg-slate-800 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     {f.label}
@@ -734,29 +762,36 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
           {filteredSchedule.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-500">Nenhum mês neste filtro.</div>
           ) : scheduleView === 'GRID' ? (
-            /* MODO GRADE COMPACTA: 2 a 3 meses por linha, vendo 12+ meses sem scroll */
-            <div className="p-2.5 max-h-[520px] overflow-y-auto">
+            /* MODO GRADE COMPACTA: 2 a 3 meses por linha, com suporte a compras parciais */
+            <div className="p-2.5 max-h-[540px] overflow-y-auto">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
                 {filteredSchedule.map((row) => {
-                  const isCompleted = row.boughtQty > 0;
                   const priceDisplayVal =
                     row.pricePaidUSD > 0 ? convertFromUSD(row.pricePaidUSD, state.currency, fxRate) : 0;
+                  const monthPct =
+                    row.plannedQty > 0 ? Math.min(100, (row.boughtQty / row.plannedQty) * 100) : 0;
 
                   return (
                     <div
                       key={`${goal.id}-${row.index}`}
                       className={`rounded-lg border px-2 py-1.5 transition-colors tabular-nums ${
-                        isCompleted
+                        row.isCompleted
                           ? 'bg-emerald-950/20 border-emerald-500/35'
-                          : 'bg-slate-950/60 border-slate-800/90 hover:border-slate-700'
+                          : row.isPartial
+                            ? 'bg-amber-950/20 border-amber-500/45'
+                            : 'bg-slate-950/60 border-slate-800/90 hover:border-slate-700'
                       }`}
                     >
-                      {/* Linha 1: Mês + Meta + Custo + Botão Concluir */}
+                      {/* Linha 1: Mês + Meta + Custo + Botões (+ Parcial e Check) */}
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <div className="flex items-center gap-1 min-w-0">
                           <span
                             className={`inline-flex items-center justify-center min-w-[20px] h-4 px-1 rounded text-[10px] font-bold font-mono shrink-0 ${
-                              isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+                              row.isCompleted
+                                ? 'bg-emerald-500 text-slate-950'
+                                : row.isPartial
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : 'bg-slate-800 text-slate-300'
                             }`}
                           >
                             M{row.month}
@@ -770,11 +805,15 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                         <div className="flex items-center gap-1 shrink-0">
                           <span
                             className={`text-[10px] font-mono font-bold ${
-                              row.monthCostUSD > 0 ? 'text-emerald-400' : 'text-slate-500'
+                              row.monthCostUSD > 0
+                                ? row.isPartial
+                                  ? 'text-amber-300'
+                                  : 'text-emerald-400'
+                                : 'text-slate-500'
                             }`}
                             title={
                               row.monthCostUSD > 0
-                                ? `Pago: ${formatMoney(row.monthCostUSD, state.currency, fxRate, 2)} · PM: ${formatMoney(row.cumAvgPriceUSD, state.currency, fxRate)}`
+                                ? `Pago: ${formatMoney(row.monthCostUSD, state.currency, fxRate, 2)} · PM acumulado: ${formatMoney(row.cumAvgPriceUSD, state.currency, fxRate)}`
                                 : `Estimativa atual: ${formatMoney(row.estimatedMonthCostAtLivePriceUSD, state.currency, fxRate, 2)}`
                             }
                           >
@@ -786,10 +825,33 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                           </span>
                           <button
                             type="button"
-                            title={`Lançar ${formatCryptoQty(row.plannedQty, goal.symbol)} na cotação atual`}
+                            title={
+                              row.entriesCount > 0
+                                ? `Gerenciar lançamentos parciais (${row.entriesCount} lote${row.entriesCount > 1 ? 's' : ''}) ou somar mais compras`
+                                : `Adicionar compra parcial no Mês ${row.month}`
+                            }
+                            onClick={() => setPartialModalMonthIndex(row.index)}
+                            className={`h-5 px-1 rounded inline-flex items-center justify-center gap-0.5 text-[9px] font-mono font-bold transition-colors shrink-0 ${
+                              row.isPartial
+                                ? 'bg-amber-500/25 text-amber-200 border border-amber-500/45 hover:bg-amber-500 hover:text-slate-950'
+                                : row.entriesCount > 1
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/35 hover:bg-emerald-500 hover:text-slate-950'
+                                  : 'bg-slate-800 text-slate-300 hover:bg-[#D91E2A] hover:text-white'
+                            }`}
+                          >
+                            <Plus className="w-2.5 h-2.5 stroke-[2.5]" />
+                            {row.entriesCount > 1 && <span>{row.entriesCount}x</span>}
+                          </button>
+                          <button
+                            type="button"
+                            title={
+                              row.isPartial
+                                ? `Completar restante do mês (+${formatCryptoQty(row.remainingMonthQty, goal.symbol)}) na cotação atual`
+                                : `Lançar meta completa (${formatCryptoQty(row.plannedQty, goal.symbol)}) na cotação atual`
+                            }
                             onClick={() => onQuickCompleteMonth(goal.id, row.index, row.plannedQty)}
                             className={`w-5 h-5 rounded inline-flex items-center justify-center transition-colors shrink-0 ${
-                              isCompleted
+                              row.isCompleted
                                 ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950'
                                 : 'bg-slate-800 text-slate-400 hover:bg-emerald-500 hover:text-slate-950'
                             }`}
@@ -810,7 +872,11 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                           decimalsOnBlur={4}
                           ariaLabel={`Quantidade comprada no mês ${row.month}`}
                           className={`min-w-0 flex-1 h-6 rounded bg-slate-950 border ${
-                            isCompleted ? 'border-emerald-500/40 text-emerald-100' : 'border-slate-800 text-slate-200'
+                            row.isCompleted
+                              ? 'border-emerald-500/40 text-emerald-100'
+                              : row.isPartial
+                                ? 'border-amber-500/45 text-amber-100'
+                                : 'border-slate-800 text-slate-200'
                           } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
                         />
                         <span className="text-[10px] text-slate-600 shrink-0">@</span>
@@ -823,10 +889,38 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                           decimalsOnBlur={4}
                           ariaLabel={`Preço pago no mês ${row.month}`}
                           className={`min-w-0 flex-1 h-6 rounded bg-slate-950 border ${
-                            row.pricePaidUSD > 0 ? 'border-emerald-500/40 text-emerald-100' : 'border-slate-800 text-slate-200'
+                            row.pricePaidUSD > 0
+                              ? row.isPartial
+                                ? 'border-amber-500/45 text-amber-100'
+                                : 'border-emerald-500/40 text-emerald-100'
+                              : 'border-slate-800 text-slate-200'
                           } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
                         />
                       </div>
+
+                      {/* Linha 3 (compacta): Indicador de restante quando parcial */}
+                      {row.isPartial && (
+                        <button
+                          type="button"
+                          onClick={() => setPartialModalMonthIndex(row.index)}
+                          className="mt-1.5 w-full text-left group"
+                        >
+                          <div className="flex items-center justify-between text-[9px] font-mono mb-0.5">
+                            <span className="text-amber-300 font-semibold group-hover:underline">
+                              Falta {formatCryptoQty(row.remainingMonthQty)} ({monthPct.toFixed(0)}%)
+                            </span>
+                            <span className="text-slate-400">
+                              ~{formatMoney(row.estimatedRemainingMonthCostUSD, state.currency, fxRate, 0)}
+                            </span>
+                          </div>
+                          <div className="w-full h-1 rounded-full bg-slate-900 overflow-hidden">
+                            <div
+                              className="h-full bg-amber-400 rounded-full transition-all"
+                              style={{ width: `${monthPct}%` }}
+                            />
+                          </div>
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -834,19 +928,18 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
             </div>
           ) : (
             /* MODO TABELA INLINE DENSA */
-            <div className="max-h-[520px] overflow-y-auto">
+            <div className="max-h-[540px] overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-10 bg-slate-950/95 border-b border-slate-800 text-[10px] uppercase tracking-wider font-bold text-slate-500">
                   <tr>
                     <th className="py-1.5 pl-3 pr-2">Mês</th>
-                    <th className="py-1.5 px-2 text-right">Meta ({goal.symbol})</th>
+                    <th className="py-1.5 px-2 text-right">Meta / Falta</th>
                     <th className="py-1.5 px-2">Comprado @ Preço ({currSymbol})</th>
                     <th className="py-1.5 pl-2 pr-3 text-right">Valor</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-[11px] tabular-nums">
                   {filteredSchedule.map((row) => {
-                    const isCompleted = row.boughtQty > 0;
                     const priceDisplayVal =
                       row.pricePaidUSD > 0 ? convertFromUSD(row.pricePaidUSD, state.currency, fxRate) : 0;
 
@@ -854,14 +947,18 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                       <tr
                         key={`${goal.id}-${row.index}`}
                         className={`hover:bg-slate-800/40 transition-colors ${
-                          isCompleted ? 'bg-emerald-950/15' : ''
+                          row.isCompleted ? 'bg-emerald-950/15' : row.isPartial ? 'bg-amber-950/15' : ''
                         }`}
                       >
-                        <td className="py-0.5 pl-3 pr-2 whitespace-nowrap">
+                        <td className="py-1 pl-3 pr-2 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <span
                               className={`inline-flex items-center justify-center min-w-[22px] h-4 px-1 rounded text-[10px] font-bold font-mono ${
-                                isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800/90 text-slate-400'
+                                row.isCompleted
+                                  ? 'bg-emerald-500 text-slate-950'
+                                  : row.isPartial
+                                    ? 'bg-amber-400 text-slate-950'
+                                    : 'bg-slate-800/90 text-slate-400'
                               }`}
                             >
                               {row.month}
@@ -870,11 +967,16 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                           </div>
                         </td>
 
-                        <td className="py-0.5 px-2 text-right font-mono text-slate-400 whitespace-nowrap">
-                          {formatCryptoQty(row.plannedQty)}
+                        <td className="py-1 px-2 text-right font-mono whitespace-nowrap">
+                          <div className="text-slate-400">{formatCryptoQty(row.plannedQty)}</div>
+                          {row.isPartial && (
+                            <div className="text-[9px] text-amber-300 font-semibold">
+                              falta {formatCryptoQty(row.remainingMonthQty)}
+                            </div>
+                          )}
                         </td>
 
-                        <td className="py-0.5 px-2 whitespace-nowrap">
+                        <td className="py-1 px-2 whitespace-nowrap">
                           <div className="flex items-center gap-1">
                             <NumericInput
                               value={row.boughtQty}
@@ -884,8 +986,12 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                               placeholder={row.plannedQty.toFixed(2)}
                               decimalsOnBlur={4}
                               ariaLabel={`Quantidade comprada no mês ${row.month}`}
-                              className={`w-[78px] h-6 rounded bg-slate-950 border ${
-                                isCompleted ? 'border-emerald-500/40 text-emerald-100' : 'border-slate-800 text-slate-200'
+                              className={`w-[74px] h-6 rounded bg-slate-950 border ${
+                                row.isCompleted
+                                  ? 'border-emerald-500/40 text-emerald-100'
+                                  : row.isPartial
+                                    ? 'border-amber-500/45 text-amber-100'
+                                    : 'border-slate-800 text-slate-200'
                               } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
                             />
                             <span className="text-[10px] text-slate-600">@</span>
@@ -897,16 +1003,43 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                               placeholder={convertFromUSD(m.currentPriceUSD, state.currency, fxRate).toFixed(2)}
                               decimalsOnBlur={4}
                               ariaLabel={`Preço pago no mês ${row.month}`}
-                              className={`w-[76px] h-6 rounded bg-slate-950 border ${
-                                row.pricePaidUSD > 0 ? 'border-emerald-500/40 text-emerald-100' : 'border-slate-800 text-slate-200'
+                              className={`w-[72px] h-6 rounded bg-slate-950 border ${
+                                row.pricePaidUSD > 0
+                                  ? row.isPartial
+                                    ? 'border-amber-500/45 text-amber-100'
+                                    : 'border-emerald-500/40 text-emerald-100'
+                                  : 'border-slate-800 text-slate-200'
                               } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
                             />
                             <button
                               type="button"
-                              title="Preencher meta do mês na cotação atual"
+                              title={
+                                row.entriesCount > 0
+                                  ? `Lançamentos parciais (${row.entriesCount} lote${row.entriesCount > 1 ? 's' : ''}) — clique para adicionar ou editar`
+                                  : `Adicionar lançamento parcial no Mês ${row.month}`
+                              }
+                              onClick={() => setPartialModalMonthIndex(row.index)}
+                              className={`h-6 px-1.5 rounded inline-flex items-center justify-center gap-0.5 text-[10px] font-mono font-bold transition-colors shrink-0 ${
+                                row.isPartial
+                                  ? 'bg-amber-500/25 text-amber-200 border border-amber-500/45 hover:bg-amber-500 hover:text-slate-950'
+                                  : row.entriesCount > 1
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/35 hover:bg-emerald-500 hover:text-slate-950'
+                                    : 'bg-slate-800/80 text-slate-300 hover:bg-[#D91E2A] hover:text-white'
+                              }`}
+                            >
+                              <Plus className="w-3 h-3" />
+                              {row.entriesCount > 1 && <span>{row.entriesCount}x</span>}
+                            </button>
+                            <button
+                              type="button"
+                              title={
+                                row.isPartial
+                                  ? `Completar restante (+${formatCryptoQty(row.remainingMonthQty, goal.symbol)}) na cotação atual`
+                                  : 'Preencher meta do mês na cotação atual'
+                              }
                               onClick={() => onQuickCompleteMonth(goal.id, row.index, row.plannedQty)}
                               className={`w-6 h-6 rounded inline-flex items-center justify-center transition-colors shrink-0 ${
-                                isCompleted
+                                row.isCompleted
                                   ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950'
                                   : 'bg-slate-800/80 text-slate-400 hover:bg-emerald-500 hover:text-slate-950'
                               }`}
@@ -917,7 +1050,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                         </td>
 
                         <td
-                          className="py-0.5 pl-2 pr-3 text-right font-mono whitespace-nowrap"
+                          className="py-1 pl-2 pr-3 text-right font-mono whitespace-nowrap"
                           title={
                             row.monthCostUSD > 0
                               ? `Pago: ${formatMoney(row.monthCostUSD, state.currency, fxRate, 2)} (${formatBRL(row.monthCostBRL, 2)}) · PM acumulado: ${formatMoney(row.cumAvgPriceUSD, state.currency, fxRate)}`
@@ -925,7 +1058,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                           }
                         >
                           {row.monthCostUSD > 0 ? (
-                            <span className="font-bold text-emerald-400">
+                            <span className={`font-bold ${row.isPartial ? 'text-amber-300' : 'text-emerald-400'}`}>
                               {state.currency === 'BRL'
                                 ? formatBRL(row.monthCostBRL, 2)
                                 : formatMoney(row.monthCostUSD, state.currency, fxRate, 2)}
@@ -1004,6 +1137,18 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
           </div>
         </div>
       </div>
+
+      <PartialPurchaseModal
+        isOpen={partialModalMonthIndex !== null && activePartialRow !== null}
+        goal={goal}
+        row={activePartialRow}
+        currentPriceUSD={m.currentPriceUSD}
+        currency={state.currency}
+        fxRate={fxRate}
+        onClose={() => setPartialModalMonthIndex(null)}
+        onAddPartialPurchase={onAddPartialPurchase}
+        onRemovePartialPurchase={onRemovePartialPurchase}
+      />
     </div>
   );
 };

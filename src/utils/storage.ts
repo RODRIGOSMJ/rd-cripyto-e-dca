@@ -100,12 +100,26 @@ export function normalizeLoadedState(parsed: Partial<AppState> | null | undefine
     const recs = Array.isArray(g.monthlyRecords) ? g.monthlyRecords : [];
     const normalizedRecs = Array.from({ length: mCount }, (_, idx) => {
       const r = recs[idx];
+      const fallbackFx = Number(r?.fxRateBRL) > 0 ? Number(r?.fxRateBRL) : usdtBrlRate;
+      const rawEntries = Array.isArray(r?.entries) ? r.entries : [];
+      const entries = rawEntries
+        .filter((e) => e && Number(e.qty) > 0)
+        .slice(0, 50)
+        .map((e, eIdx) => ({
+          id: String(e.id || `lot_${idx + 1}_${eIdx}`),
+          qty: Math.max(0, Number(e.qty) || 0),
+          pricePaidUSD: Math.max(0, Number(e.pricePaidUSD) || 0),
+          fxRateBRL: Number(e.fxRateBRL) > 0 ? Number(e.fxRateBRL) : fallbackFx,
+          dateISO: typeof e.dateISO === 'string' && e.dateISO ? e.dateISO : new Date().toISOString()
+        }));
+
       return {
         month: idx + 1,
         label: r?.label || getFutureMonthLabel(idx),
         boughtQty: Number(r?.boughtQty) || 0,
         pricePaidUSD: Number(r?.pricePaidUSD) || 0,
-        fxRateBRL: Number(r?.fxRateBRL) > 0 ? Number(r?.fxRateBRL) : usdtBrlRate
+        fxRateBRL: fallbackFx,
+        ...(entries.length > 0 ? { entries } : {})
       };
     });
 

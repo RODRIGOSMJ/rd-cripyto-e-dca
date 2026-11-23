@@ -2,7 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, ArrowRightLeft, PieChart, Plus } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
-import { AppState, ConverterState, CryptoGoal, CurrencyMode, MainTab, ToastMessage } from './types';
+import {
+  AppState,
+  ConverterState,
+  CryptoGoal,
+  CurrencyMode,
+  MainTab,
+  MonthlyPurchaseEntry,
+  ToastMessage
+} from './types';
 import {
   CUSTOM_PALETTE,
   SUPPORTED_CRYPTOS,
@@ -17,7 +25,9 @@ import {
   convertToUSD,
   formatCryptoQty,
   formatUSDT,
-  getEffectiveUsdtBrlRate
+  getEffectiveUsdtBrlRate,
+  getNormalizedMonthEntries,
+  summarizeMonthlyEntries
 } from './utils/calculations';
 import { subscribeLiveBinanceStream, syncLivePrices } from './utils/priceService';
 import { downloadCSVReport, downloadJSONBackup } from './utils/exportUtils';
@@ -741,20 +751,177 @@ export default function App() {
             const autoPrice =
               cleanVal > 0 && r.pricePaidUSD === 0 ? Number(prev.pricesUSD[g.symbol]) || 0 : r.pricePaidUSD;
             const autoFx = cleanVal > 0 && r.pricePaidUSD === 0 ? fx : r.fxRateBRL;
-            return { ...r, boughtQty: cleanVal, pricePaidUSD: autoPrice, fxRateBRL: autoFx };
+            const syncedEntries: MonthlyPurchaseEntry[] =
+              cleanVal > 0
+                ? [
+                    {
+                      id: r.entries?.[0]?.id || `lot_${r.month}_${Date.now()}`,
+                      qty: cleanVal,
+                      pricePaidUSD: autoPrice,
+                      fxRateBRL: autoFx > 0 ? autoFx : fx,
+                      dateISO: r.entries?.[0]?.dateISO || new Date().toISOString()
+                    }
+                  ]
+                : [];
+            return {
+              ...r,
+              boughtQty: cleanVal,
+              pricePaidUSD: autoPrice,
+              fxRateBRL: autoFx,
+              entries: syncedEntries
+            };
           }
-          return { ...r, pricePaidUSD: convertToUSD(cleanVal, prev.currency, fx) };
+          const nextPriceUSD = convertToUSD(cleanVal, prev.currency, fx);
+          const syncedEntries: MonthlyPurchaseEntry[] =
+            r.boughtQty > 0
+              ? [
+                  {
+                    id: r.entries?.[0]?.id || `lot_${r.month}_${Date.now()}`,
+                    qty: r.boughtQty,
+                    pricePaidUSD: nextPriceUSD,
+                    fxRateBRL: r.fxRateBRL > 0 ? r.fxRateBRL : fx,
+                    dateISO: r.entries?.[0]?.dateISO || new Date().toISOString()
+                  }
+                ]
+              : [];
+          return { ...r, pricePaidUSD: nextPriceUSD, entries: syncedEntries };
         });
         return { ...g, monthlyRecords: recs };
       })
     }));
   };
 
+  const handleAddPartialPurchase = (
+    goalId: string,
+    monthIndex: number,
+    qty: number,
+    priceDisplay: number
+  ) => {
+    const goal = state.goals.find((g) => g.id === goalId);
+    if (!goal || !goal.monthlyRecords[monthIndex]) return;
+
+    const cleanQty = Number(qty);
+    if (!Number.isFinite(cleanQty) || cleanQty <= 0) {
+      showToast('Informe uma quantidade válida maior que zero.', 'error');
+      return;
+    }
+
+    const fx = getEffectiveUsdtBrlRate(state);
+    const liveUSD = Number(state.pricesUSD[goal.symbol]) || 0;
+    const priceUSD =
+      Number.isFinite(priceDisplay) && priceDisplay > 0
+        ? convertToUSD(priceDisplay, state.currency, fx)
+        : liveUSD;
+
+    const currentRec = goal.monthlyRecords[monthIndex];
+    const existingEntries = getNormalizedMonthEntries(currentRec, fx);
+    const newEntry: MonthlyPurchaseEntry = {
+      id: `lot_${monthIndex + 1}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      qty: Number(cleanQty.toFixed(6)),
+      pricePaidUSD: Math.max(0, priceUSD),
+      fxRateBRL: fx,
+      dateISO: new Date().toISOString()
+    };
+    const nextEntries = [...existingEntries, newEntry];
+    const summary = summarizeMonthlyEntries(nextEntries, fx);
+
+    const metricsBefore = calculateGoalMetrics(goal, state.pricesUSD, fx);
+    const plannedQty = metricsBefore.baseMonthlyTargetQty;
+    const remainingAfter = Math.max(0, plannedQty - summary.boughtQty);
+
+    updateAndPersist((prev) => ({
+      ...prev,
+      goals: prev.goals.map((g) => {
+        if (g.id !== goalId) return g;
+        const recs = g.monthlyRecords.map((r, idx) =>
+          idx === monthIndex
+            ? {
+                ...r,
+                boughtQty: summary.boughtQty,
+                pricePaidUSD: summary.pricePaidUSD,
+                fxRateBRL: summary.fxRateBRL,
+                entries: nextEntries
+              }
+            : r
+        );
+        return { ...g, monthlyRecords: recs };
+      })
+    }));
+
+    if (remainingAfter > 0.0001) {
+      showToast(
+        `+${formatCryptoQty(cleanQty, goal.symbol)} no Mês ${monthIndex + 1}! Faltam ${formatCryptoQty(remainingAfter, goal.symbol)} neste mês.`,
+        'success'
+      );
+    } else {
+      showToast(
+        `Mês ${monthIndex + 1} concluído (${formatCryptoQty(summary.boughtQty, goal.symbol)})!`,
+        'success'
+      );
+    }
+  };
+
+  const handleRemovePartialPurchase = (goalId: string, monthIndex: number, entryId: string) => {
+    const goal = state.goals.find((g) => g.id === goalId);
+    if (!goal || !goal.monthlyRecords[monthIndex]) return;
+
+    const fx = getEffectiveUsdtBrlRate(state);
+    const currentRec = goal.monthlyRecords[monthIndex];
+    const existingEntries = getNormalizedMonthEntries(currentRec, fx);
+    const nextEntries = existingEntries.filter((e) => e.id !== entryId);
+    const summary = summarizeMonthlyEntries(nextEntries, fx);
+
+    updateAndPersist((prev) => ({
+      ...prev,
+      goals: prev.goals.map((g) => {
+        if (g.id !== goalId) return g;
+        const recs = g.monthlyRecords.map((r, idx) =>
+          idx === monthIndex
+            ? {
+                ...r,
+                boughtQty: summary.boughtQty,
+                pricePaidUSD: summary.pricePaidUSD,
+                fxRateBRL: summary.fxRateBRL,
+                entries: nextEntries
+              }
+            : r
+        );
+        return { ...g, monthlyRecords: recs };
+      })
+    }));
+
+    showToast(`Lançamento parcial removido do Mês ${monthIndex + 1}.`, 'info');
+  };
+
   const handleQuickCompleteMonth = (goalId: string, monthIndex: number, plannedQty: number) => {
     const goal = state.goals.find((g) => g.id === goalId);
-    if (!goal) return;
+    if (!goal || !goal.monthlyRecords[monthIndex]) return;
+
     const liveUSD = Number(state.pricesUSD[goal.symbol]) || 0;
     const fx = getEffectiveUsdtBrlRate(state);
+    const currentRec = goal.monthlyRecords[monthIndex];
+    const existingEntries = getNormalizedMonthEntries(currentRec, fx);
+    const currentSummary = summarizeMonthlyEntries(existingEntries, fx);
+    const remaining = Math.max(0, plannedQty - currentSummary.boughtQty);
+
+    if (remaining <= 0.0001 && currentSummary.boughtQty > 0) {
+      showToast(
+        `Mês ${monthIndex + 1} já atingiu a meta! Clique em "+" para lançar uma compra extra.`,
+        'info'
+      );
+      return;
+    }
+
+    const qtyToAdd = Number((remaining > 0 ? remaining : plannedQty).toFixed(4));
+    const newEntry: MonthlyPurchaseEntry = {
+      id: `lot_${monthIndex + 1}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      qty: qtyToAdd,
+      pricePaidUSD: liveUSD,
+      fxRateBRL: fx,
+      dateISO: new Date().toISOString()
+    };
+    const nextEntries = [...existingEntries, newEntry];
+    const nextSummary = summarizeMonthlyEntries(nextEntries, fx);
 
     updateAndPersist((prev) => ({
       ...prev,
@@ -764,50 +931,41 @@ export default function App() {
           idx === monthIndex
             ? {
                 ...r,
-                boughtQty: Number(Number(plannedQty).toFixed(4)),
-                pricePaidUSD: r.pricePaidUSD > 0 ? r.pricePaidUSD : liveUSD,
-                fxRateBRL: fx
+                boughtQty: nextSummary.boughtQty,
+                pricePaidUSD: nextSummary.pricePaidUSD,
+                fxRateBRL: nextSummary.fxRateBRL,
+                entries: nextEntries
               }
             : r
         );
         return { ...g, monthlyRecords: recs };
       })
     }));
-    showToast(`Mês ${monthIndex + 1} registrado (${formatCryptoQty(plannedQty, goal.symbol)})!`, 'success');
+
+    if (existingEntries.length > 0) {
+      showToast(
+        `Restante de ${formatCryptoQty(qtyToAdd, goal.symbol)} adicionado! Mês ${monthIndex + 1} concluído.`,
+        'success'
+      );
+    } else {
+      showToast(`Mês ${monthIndex + 1} registrado (${formatCryptoQty(qtyToAdd, goal.symbol)})!`, 'success');
+    }
   };
 
   const handleAutoFillNextEmptyMonth = (goalId: string) => {
     const goal = state.goals.find((g) => g.id === goalId);
     if (!goal) return;
 
-    const emptyIdx = goal.monthlyRecords.findIndex((r) => !r.boughtQty || r.boughtQty <= 0);
-    if (emptyIdx === -1) {
-      showToast('Todos os meses já possuem compras registradas!', 'info');
-      return;
-    }
-
     const fx = getEffectiveUsdtBrlRate(state);
     const m = calculateGoalMetrics(goal, state.pricesUSD, fx);
 
-    updateAndPersist((prev) => ({
-      ...prev,
-      goals: prev.goals.map((g) => {
-        if (g.id !== goalId) return g;
-        const recs = g.monthlyRecords.map((r, idx) =>
-          idx === emptyIdx
-            ? {
-                ...r,
-                boughtQty: Number(m.baseMonthlyTargetQty.toFixed(4)),
-                pricePaidUSD: m.currentPriceUSD,
-                fxRateBRL: fx
-              }
-            : r
-        );
-        return { ...g, monthlyRecords: recs };
-      })
-    }));
+    const nextPendingRow = m.schedule.find((row) => !row.isCompleted);
+    if (!nextPendingRow) {
+      showToast('Todos os meses já atingiram a meta!', 'info');
+      return;
+    }
 
-    showToast(`Mês ${emptyIdx + 1} registrado (${formatCryptoQty(m.baseMonthlyTargetQty, goal.symbol)})!`, 'success');
+    handleQuickCompleteMonth(goalId, nextPendingRow.index, nextPendingRow.plannedQty);
   };
 
   // Handlers Conversor
@@ -901,8 +1059,19 @@ export default function App() {
       return;
     }
 
-    const qtyBought = res.netUSDT / livePriceUSD;
+    const qtyBought = Number((res.netUSDT / livePriceUSD).toFixed(4));
     const idx = Math.min(goal.monthlyRecords.length - 1, Math.max(0, c.targetMonthIndex));
+    const currentRec = goal.monthlyRecords[idx];
+    const existingEntries = currentRec ? getNormalizedMonthEntries(currentRec, spotFx) : [];
+    const newEntry: MonthlyPurchaseEntry = {
+      id: `lot_${idx + 1}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      qty: qtyBought,
+      pricePaidUSD: livePriceUSD,
+      fxRateBRL: res.effectiveFxRate,
+      dateISO: new Date().toISOString()
+    };
+    const nextEntries = [...existingEntries, newEntry];
+    const summary = summarizeMonthlyEntries(nextEntries, res.effectiveFxRate);
 
     updateAndPersist((prev) => ({
       ...prev,
@@ -914,9 +1083,10 @@ export default function App() {
           rIdx === idx
             ? {
                 ...r,
-                boughtQty: Number(qtyBought.toFixed(4)),
-                pricePaidUSD: livePriceUSD,
-                fxRateBRL: res.effectiveFxRate
+                boughtQty: summary.boughtQty,
+                pricePaidUSD: summary.pricePaidUSD,
+                fxRateBRL: summary.fxRateBRL,
+                entries: nextEntries
               }
             : r
         );
@@ -925,7 +1095,9 @@ export default function App() {
     }));
 
     showToast(
-      `Lançado ${formatCryptoQty(qtyBought, goal.symbol)} (${formatUSDT(res.netUSDT)}) no Mês ${idx + 1}!`,
+      existingEntries.length > 0
+        ? `Somado +${formatCryptoQty(qtyBought, goal.symbol)} (${formatUSDT(res.netUSDT)}) no Mês ${idx + 1}!`
+        : `Lançado ${formatCryptoQty(qtyBought, goal.symbol)} (${formatUSDT(res.netUSDT)}) no Mês ${idx + 1}!`,
       'success'
     );
   };
@@ -1093,6 +1265,8 @@ export default function App() {
               onDeleteGoal={handleDeleteGoal}
               onUpdateRetirementPrice={handleUpdateRetirementPrice}
               onUpdateMonthlyRecordNumber={handleUpdateMonthlyRecordNumber}
+              onAddPartialPurchase={handleAddPartialPurchase}
+              onRemovePartialPurchase={handleRemovePartialPurchase}
               onQuickCompleteMonth={handleQuickCompleteMonth}
               onAutoFillNextEmptyMonth={handleAutoFillNextEmptyMonth}
               onGoToConverter={() => handleSelectMainTab('CONVERTER')}

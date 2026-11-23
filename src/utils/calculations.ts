@@ -7,9 +7,84 @@ import {
   GoalMetrics,
   MonthlyPortfolioBudget,
   MonthlyPortfolioBudgetItem,
+  MonthlyPurchaseEntry,
+  MonthlyRecord,
   ScheduleRow
 } from '../types';
 import { getFutureMonthLabel } from '../constants';
+
+export function summarizeMonthlyEntries(
+  entries: MonthlyPurchaseEntry[],
+  fallbackFx: number
+): {
+  boughtQty: number;
+  pricePaidUSD: number;
+  fxRateBRL: number;
+  monthCostUSD: number;
+  monthCostBRL: number;
+} {
+  let totalQty = 0;
+  let totalCostUSD = 0;
+  let totalCostBRL = 0;
+
+  for (const entry of entries) {
+    const qty = Math.max(0, Number(entry.qty) || 0);
+    const priceUSD = Math.max(0, Number(entry.pricePaidUSD) || 0);
+    const fx = Number(entry.fxRateBRL) > 0 ? Number(entry.fxRateBRL) : fallbackFx;
+    if (qty <= 0) continue;
+    const costUSD = qty * priceUSD;
+    totalQty += qty;
+    totalCostUSD += costUSD;
+    totalCostBRL += costUSD * fx;
+  }
+
+  const boughtQty = Number(totalQty.toFixed(6));
+  const pricePaidUSD = totalQty > 0 ? totalCostUSD / totalQty : 0;
+  const fxRateBRL = totalCostUSD > 0 ? totalCostBRL / totalCostUSD : fallbackFx;
+
+  return {
+    boughtQty,
+    pricePaidUSD,
+    fxRateBRL,
+    monthCostUSD: totalCostUSD,
+    monthCostBRL: totalCostBRL
+  };
+}
+
+/**
+ * Returns the explicit list of partial lots for a month record.
+ * If the record was filled inline (legacy / direct total) with no entries array yet,
+ * synthesizes a single representative entry so appending a new partial purchase never loses the original buy.
+ */
+export function getNormalizedMonthEntries(
+  rec: MonthlyRecord,
+  fallbackFx: number
+): MonthlyPurchaseEntry[] {
+  if (Array.isArray(rec.entries) && rec.entries.length > 0) {
+    return rec.entries
+      .filter((e) => Number(e.qty) > 0)
+      .map((e, idx) => ({
+        id: e.id || `lot_${rec.month}_${idx}`,
+        qty: Math.max(0, Number(e.qty) || 0),
+        pricePaidUSD: Math.max(0, Number(e.pricePaidUSD) || 0),
+        fxRateBRL: Number(e.fxRateBRL) > 0 ? Number(e.fxRateBRL) : fallbackFx,
+        dateISO: e.dateISO || new Date().toISOString()
+      }));
+  }
+  const legacyQty = Math.max(0, Number(rec.boughtQty) || 0);
+  if (legacyQty > 0) {
+    return [
+      {
+        id: `legacy_${rec.month}`,
+        qty: legacyQty,
+        pricePaidUSD: Math.max(0, Number(rec.pricePaidUSD) || 0),
+        fxRateBRL: Number(rec.fxRateBRL) > 0 ? Number(rec.fxRateBRL) : fallbackFx,
+        dateISO: new Date().toISOString()
+      }
+    ];
+  }
+  return [];
+}
 
 export function getEffectiveUsdtBrlRate(state: Pick<AppState, 'manualFxOverride' | 'manualUsdtBrlRate' | 'usdtBrlRate'>): number {
   if (state.manualFxOverride && Number(state.manualUsdtBrlRate) > 0) {
@@ -107,6 +182,7 @@ export function calculateGoalMetrics(
   const baseMonthlyTargetQty = totalToBuy / monthsCount;
 
   let monthsCompleted = 0;
+  let monthsPartial = 0;
   let runningCoins = initialBalance;
   let runningBoughtDCA = 0;
   let runningInvestedUSD = 0;
@@ -115,7 +191,7 @@ export function calculateGoalMetrics(
   const schedule: ScheduleRow[] = [];
 
   for (let i = 0; i < monthsCount; i++) {
-    const rec = goal.monthlyRecords[i] || {
+    const rec: MonthlyRecord = goal.monthlyRecords[i] || {
       month: i + 1,
       label: getFutureMonthLabel(i),
       boughtQty: 0,
@@ -123,14 +199,39 @@ export function calculateGoalMetrics(
       fxRateBRL: currentFx
     };
 
-    const bought = Math.max(0, Number(rec.boughtQty) || 0);
-    const pricePaidUSD = Math.max(0, Number(rec.pricePaidUSD) || 0);
-    const fxRateBRL = Number(rec.fxRateBRL) > 0 ? Number(rec.fxRateBRL) : currentFx;
+    const hasExplicitEntries = Array.isArray(rec.entries) && rec.entries.length > 0;
+    let bought = 0;
+    let pricePaidUSD = 0;
+    let fxRateBRL = Number(rec.fxRateBRL) > 0 ? Number(rec.fxRateBRL) : currentFx;
+    let monthCostUSD = 0;
+    let monthCostBRL = 0;
+    let entries: MonthlyPurchaseEntry[] = [];
 
-    const monthCostUSD = bought * pricePaidUSD;
-    const monthCostBRL = monthCostUSD * fxRateBRL;
+    if (hasExplicitEntries && rec.entries) {
+      entries = rec.entries.filter((e) => Number(e.qty) > 0);
+      const summary = summarizeMonthlyEntries(entries, fxRateBRL);
+      bought = summary.boughtQty;
+      pricePaidUSD = summary.pricePaidUSD;
+      fxRateBRL = summary.fxRateBRL;
+      monthCostUSD = summary.monthCostUSD;
+      monthCostBRL = summary.monthCostBRL;
+    } else {
+      bought = Math.max(0, Number(rec.boughtQty) || 0);
+      pricePaidUSD = Math.max(0, Number(rec.pricePaidUSD) || 0);
+      monthCostUSD = bought * pricePaidUSD;
+      monthCostBRL = monthCostUSD * fxRateBRL;
+    }
 
-    if (bought > 0) monthsCompleted++;
+    const remainingMonthQty = Math.max(0, baseMonthlyTargetQty - bought);
+    const isCompleted =
+      baseMonthlyTargetQty > 0 ? bought >= baseMonthlyTargetQty * 0.9999 : bought > 0;
+    const isPartial = bought > 0 && !isCompleted;
+
+    if (isCompleted) {
+      monthsCompleted++;
+    } else if (isPartial) {
+      monthsPartial++;
+    }
 
     runningBoughtDCA += bought;
     runningCoins += bought;
@@ -147,6 +248,11 @@ export function calculateGoalMetrics(
       plannedQty: baseMonthlyTargetQty,
       plannedCumQty: initialBalance + baseMonthlyTargetQty * (i + 1),
       boughtQty: bought,
+      remainingMonthQty,
+      isPartial,
+      isCompleted,
+      entries,
+      entriesCount: entries.length > 0 ? entries.length : bought > 0 ? 1 : 0,
       pricePaidUSD,
       fxRateBRL,
       monthCostUSD,
@@ -157,7 +263,8 @@ export function calculateGoalMetrics(
       cumInvestedBRL: runningInvestedBRL,
       cumAvgPriceUSD,
       cumAvgPriceBRL,
-      estimatedMonthCostAtLivePriceUSD: baseMonthlyTargetQty * currentPriceUSD
+      estimatedMonthCostAtLivePriceUSD: baseMonthlyTargetQty * currentPriceUSD,
+      estimatedRemainingMonthCostUSD: remainingMonthQty * currentPriceUSD
     });
   }
 
@@ -201,6 +308,7 @@ export function calculateGoalMetrics(
     remainingCoinsToBuy,
     remainingMonths,
     monthsCompleted,
+    monthsPartial,
     totalInvestedUSD,
     totalInvestedHistoricalBRL,
     estimatedMonthlyCostUSD,

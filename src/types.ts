@@ -12,12 +12,21 @@ export interface CryptoAsset {
   fallbackUSD: number;
 }
 
+export interface MonthlyPurchaseEntry {
+  id: string;
+  qty: number;
+  pricePaidUSD: number;
+  fxRateBRL: number;
+  dateISO: string;
+}
+
 export interface MonthlyRecord {
   month: number;
   label: string;
   boughtQty: number;
   pricePaidUSD: number;
   fxRateBRL: number;
+  entries?: MonthlyPurchaseEntry[];
 }
 
 export interface CryptoGoal {
@@ -71,6 +80,11 @@ export interface ScheduleRow {
   plannedQty: number;
   plannedCumQty: number;
   boughtQty: number;
+  remainingMonthQty: number;
+  isPartial: boolean;
+  isCompleted: boolean;
+  entries: MonthlyPurchaseEntry[];
+  entriesCount: number;
   pricePaidUSD: number;
   fxRateBRL: number;
   monthCostUSD: number;
@@ -82,6 +96,7 @@ export interface ScheduleRow {
   cumAvgPriceUSD: number;
   cumAvgPriceBRL: number;
   estimatedMonthCostAtLivePriceUSD: number;
+  estimatedRemainingMonthCostUSD: number;
 }
 
 export interface GoalMetrics {
@@ -97,6 +112,7 @@ export interface GoalMetrics {
   remainingCoinsToBuy: number;
   remainingMonths: number;
   monthsCompleted: number;
+  monthsPartial: number;
   totalInvestedUSD: number;
   totalInvestedHistoricalBRL: number;
   estimatedMonthlyCostUSD: number;

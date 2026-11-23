@@ -78,12 +78,26 @@ export function sanitizeGoalUpdate(goal: CryptoGoal, pricesUSD: Record<string, n
   const monthsCount = Math.floor(clamp(goal.monthsCount, 1, 120, 12));
   const monthlyRecords = Array.from({ length: monthsCount }, (_, idx) => {
     const rec = goal.monthlyRecords[idx];
+    const fallbackFx = clamp(rec?.fxRateBRL ?? 5.85, 0.01, 1000, 5.85);
+    const rawEntries = Array.isArray(rec?.entries) ? rec.entries : [];
+    const entries = rawEntries
+      .filter((e) => e && Number(e.qty) > 0)
+      .slice(0, 50)
+      .map((e, eIdx) => ({
+        id: sanitizeId(e.id || `lot_${idx + 1}_${eIdx}`, `lot_${idx + 1}_${eIdx}`),
+        qty: clamp(e.qty, 0, 1_000_000_000_000, 0),
+        pricePaidUSD: clamp(e.pricePaidUSD, 0, 1_000_000_000, 0),
+        fxRateBRL: clamp(e.fxRateBRL ?? fallbackFx, 0.01, 1000, fallbackFx),
+        dateISO: String(e.dateISO || new Date().toISOString()).slice(0, 40)
+      }));
+
     return {
       month: idx + 1,
       label: String(rec?.label || getFutureMonthLabel(idx)).slice(0, 20),
       boughtQty: clamp(rec?.boughtQty ?? 0, 0, 1_000_000_000_000, 0),
       pricePaidUSD: clamp(rec?.pricePaidUSD ?? 0, 0, 1_000_000_000, 0),
-      fxRateBRL: clamp(rec?.fxRateBRL ?? 5.85, 0.01, 1000, 5.85)
+      fxRateBRL: fallbackFx,
+      ...(entries.length > 0 ? { entries } : {})
     };
   });
 
@@ -311,12 +325,26 @@ export function subscribeToUserCloudData(
         const rawRecs = Array.isArray(d.monthlyRecords) ? d.monthlyRecords : [];
         const monthlyRecords = Array.from({ length: mCount }, (_, idx) => {
           const r = rawRecs[idx] || {};
+          const fallbackFx = Number(r.fxRateBRL) > 0 ? Number(r.fxRateBRL) : 5.85;
+          const rawEntries = Array.isArray(r.entries) ? r.entries : [];
+          const entries = rawEntries
+            .filter((e: unknown) => e && typeof e === 'object' && Number((e as { qty?: unknown }).qty) > 0)
+            .slice(0, 50)
+            .map((e: Record<string, unknown>, eIdx: number) => ({
+              id: String(e.id || `lot_${idx + 1}_${eIdx}`),
+              qty: Math.max(0, Number(e.qty) || 0),
+              pricePaidUSD: Math.max(0, Number(e.pricePaidUSD) || 0),
+              fxRateBRL: Number(e.fxRateBRL) > 0 ? Number(e.fxRateBRL) : fallbackFx,
+              dateISO: typeof e.dateISO === 'string' && e.dateISO ? e.dateISO : new Date().toISOString()
+            }));
+
           return {
             month: idx + 1,
             label: String(r.label || getFutureMonthLabel(idx)),
             boughtQty: Number(r.boughtQty) || 0,
             pricePaidUSD: Number(r.pricePaidUSD) || 0,
-            fxRateBRL: Number(r.fxRateBRL) > 0 ? Number(r.fxRateBRL) : 5.85
+            fxRateBRL: fallbackFx,
+            ...(entries.length > 0 ? { entries } : {})
           };
         });
 

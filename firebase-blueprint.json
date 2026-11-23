@@ -143,7 +143,7 @@
         },
         "monthlyRecords": {
           "type": "array",
-          "description": "Lista limitada (1 a 120 itens) dos registros mensais de compra DCA."
+          "description": "Lista limitada (1 a 120 itens) dos registros mensais de compra DCA, incluindo lançamentos parciais opcionais (entries) com quantidade, preço pago, câmbio e data."
         },
         "createdAt": {
           "type": "string",

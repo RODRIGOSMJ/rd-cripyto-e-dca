@@ -51,7 +51,10 @@ export function migrateGoalStartToDecember(
       label: getFutureMonthLabel(idx),
       boughtQty: Number(existing?.boughtQty) || 0,
       pricePaidUSD: Number(existing?.pricePaidUSD) || 0,
-      fxRateBRL: Number(existing?.fxRateBRL) > 0 ? Number(existing.fxRateBRL) : defaultFx
+      fxRateBRL: Number(existing?.fxRateBRL) > 0 ? Number(existing.fxRateBRL) : defaultFx,
+      ...(Array.isArray(existing?.entries) && existing.entries.length > 0
+        ? { entries: existing.entries }
+        : {})
     };
   });
 

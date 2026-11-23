@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { CryptoGoal, CurrencyMode } from '../types';
 import { DEFAULT_PLAN_MONTHS, SUPPORTED_CRYPTOS, getFutureMonthLabel } from '../constants';
 import { convertFromUSD, convertToUSD, formatCryptoQty, formatMoney } from '../utils/calculations';
+import { CryptoLogo } from './CryptoLogo';
 
 export interface GoalFormPayload {
   existingId: string | null;
@@ -147,12 +148,15 @@ export const GoalModal: React.FC<GoalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 className="text-lg font-extrabold text-white">
-            {editingGoal ? `Editar Meta: ${editingGoal.name}` : 'Nova Meta de Acumulação (DCA)'}
-          </h3>
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#120b0e] border border-red-950/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl shadow-red-950/40 space-y-5 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-red-950/60 pb-3">
+          <div className="flex items-center gap-2.5">
+            <CryptoLogo symbol={previewSym} size={26} />
+            <h3 className="text-lg font-extrabold text-white">
+              {editingGoal ? `Editar Meta: ${editingGoal.name}` : 'Nova Meta de Acumulação (DCA)'}
+            </h3>
+          </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
             <X className="w-5 h-5" />
           </button>
@@ -161,18 +165,21 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">Criptomoeda</label>
-            <select
-              value={selectedAsset}
-              onChange={(e) => handleAssetChange(e.target.value)}
-              className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-            >
-              {SUPPORTED_CRYPTOS.map((c) => (
-                <option key={c.symbol} value={c.symbol}>
-                  {c.name} ({c.symbol})
-                </option>
-              ))}
-              <option value="CUSTOM">+ Adicionar Outra Cripto Personalizada</option>
-            </select>
+            <div className="flex items-center gap-2.5">
+              <CryptoLogo symbol={previewSym} size={32} className="ring-1 ring-white/15 rounded-full" />
+              <select
+                value={selectedAsset}
+                onChange={(e) => handleAssetChange(e.target.value)}
+                className="flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-[#E11D2E]"
+              >
+                {SUPPORTED_CRYPTOS.map((c) => (
+                  <option key={c.symbol} value={c.symbol}>
+                    {c.name} ({c.symbol})
+                  </option>
+                ))}
+                <option value="CUSTOM">+ Adicionar Outra Cripto Personalizada</option>
+              </select>
+            </div>
           </div>
 
           {selectedAsset === 'CUSTOM' && (
@@ -305,7 +312,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-xs font-extrabold text-slate-950 transition-colors"
+              className="px-5 py-2.5 rounded-xl spfc-gradient-btn text-xs font-extrabold text-white transition-all shadow-md shadow-red-950/50 border border-white/10"
             >
               Salvar Meta
             </button>

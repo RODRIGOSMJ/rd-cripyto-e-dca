@@ -30,6 +30,7 @@ import {
 } from '../utils/calculations';
 import { DualMoney } from './DualMoney';
 import { NumericInput } from './NumericInput';
+import { CryptoLogo } from './CryptoLogo';
 
 Chart.register(...registerables);
 
@@ -273,7 +274,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
         <button
           type="button"
           onClick={() => onOpenGoalModal()}
-          className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition-colors"
+          className="px-5 py-2.5 rounded-xl spfc-gradient-btn text-white font-bold text-sm transition-all shadow-md shadow-red-950/50"
         >
           Criar Primeira Meta
         </button>
@@ -295,20 +296,20 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
   return (
     <div className="space-y-3">
       {/* Barra Compacta: Dólares Necessários no Mês (Todas as Criptos) */}
-      <section className="rounded-xl bg-slate-900 border border-sky-500/30 px-3 py-2.5 space-y-2">
+      <section className="rounded-xl bg-gradient-to-r from-[#21090f]/95 via-[#140b0e]/95 to-[#120b0e]/95 border border-red-500/35 px-3 py-2.5 space-y-2 shadow-sm shadow-red-950/30">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-md bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
+              <span className="w-6 h-6 rounded-md bg-[#D91E2A]/20 border border-[#E11D2E]/45 flex items-center justify-center text-[#ff4d5a] shrink-0">
                 <DollarSign className="w-3.5 h-3.5" />
               </span>
               <span className="text-xs font-extrabold text-white whitespace-nowrap">
                 Total Mês {monthlyBudget.monthNumber}:
               </span>
-              <span className="text-sm sm:text-base font-extrabold font-mono text-sky-400 tabular-nums whitespace-nowrap">
+              <span className="text-sm sm:text-base font-extrabold font-mono text-white tabular-nums whitespace-nowrap">
                 {formatUSDT(monthlyBudget.totalPlannedUSD, 2)}
               </span>
-              <span className="text-[11px] font-mono text-slate-400 tabular-nums whitespace-nowrap hidden sm:inline">
+              <span className="text-[11px] font-mono text-red-200/70 tabular-nums whitespace-nowrap hidden sm:inline">
                 (≈ {formatBRL(monthlyBudget.totalPlannedUSD * fxRate, 2)})
               </span>
             </div>
@@ -402,13 +403,13 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
               type="button"
               onClick={() => onSelectGoal(item.goalId)}
               title={`${item.name}: ${formatCryptoQty(item.plannedQty, item.symbol)} × ${formatUSDT(item.currentPriceUSD)} = ${formatUSDT(item.plannedCostUSD, 2)}`}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] transition-colors tabular-nums whitespace-nowrap shrink-0 ${
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] transition-colors tabular-nums whitespace-nowrap shrink-0 ${
                 item.isCompleted
                   ? 'bg-emerald-950/35 border-emerald-500/35 text-emerald-300'
-                  : 'bg-slate-950 border-slate-800 hover:border-sky-500/50 text-slate-300'
+                  : 'bg-[#0e080b] border-red-950/70 hover:border-[#E11D2E]/60 text-slate-200'
               }`}
             >
-              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+              <CryptoLogo symbol={item.symbol} color={item.color} size={14} />
               <span className="font-bold">{item.symbol}</span>
               <span className="font-mono text-sky-300">{formatUSDT(item.plannedCostUSD, 2)}</span>
               {item.isCompleted && <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
@@ -418,9 +419,9 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
 
         {/* Detalhamento Expandível por Cripto */}
         {budgetDetailsOpen && (
-          <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+          <div className="overflow-x-auto rounded-lg border border-red-950/60 bg-[#0c070a]/80">
             <table className="w-full text-left border-collapse text-[11px] tabular-nums">
-              <thead className="bg-slate-950 border-b border-slate-800 text-[10px] uppercase tracking-wider font-bold text-slate-500">
+              <thead className="bg-[#0a0608] border-b border-red-950/60 text-[10px] uppercase tracking-wider font-bold text-slate-400">
                 <tr>
                   <th className="py-1.5 px-3">Cripto</th>
                   <th className="py-1.5 px-2.5 text-right">Preço Atual</th>
@@ -434,13 +435,13 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                   <tr
                     key={item.goalId}
                     onClick={() => onSelectGoal(item.goalId)}
-                    className="hover:bg-slate-800/40 cursor-pointer transition-colors"
+                    className="hover:bg-red-950/25 cursor-pointer transition-colors"
                   >
                     <td className="py-1.5 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <div className="flex items-center gap-2">
+                        <CryptoLogo symbol={item.symbol} color={item.color} size={18} />
                         <span className="font-bold text-white">{item.name}</span>
-                        <span className="text-[10px] font-mono text-slate-500">{item.symbol}</span>
+                        <span className="text-[10px] font-mono text-slate-400">{item.symbol}</span>
                       </div>
                     </td>
                     <td className="py-1.5 px-2.5 text-right font-mono text-slate-300 whitespace-nowrap">
@@ -487,18 +488,19 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
             const gm = calculateGoalMetrics(g, state.pricesUSD, fxRate);
             const isSelected = g.id === goal.id;
             return (
-              <button
+                <button
                 key={g.id}
                 type="button"
                 onClick={() => onSelectGoal(g.id)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+                className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap shrink-0 ${
                   isSelected
-                    ? 'bg-emerald-500/15 text-white border border-emerald-500'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
+                    ? 'bg-gradient-to-r from-[#D91E2A]/25 to-[#7F0A14]/20 text-white border border-[#E11D2E]/80 shadow-sm shadow-red-950/40'
+                    : 'bg-[#120b0e] text-slate-400 hover:text-white border border-slate-800 hover:border-red-900/60'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: g.color || '#10b981' }} />
+                <CryptoLogo symbol={g.symbol} color={g.color} size={18} />
                 <span>{g.name}</span>
+                <span className="text-[10px] font-mono text-slate-400">{g.symbol}</span>
                 <span className="font-mono text-[11px] text-emerald-400 tabular-nums">{gm.progressPct.toFixed(0)}%</span>
               </button>
             );
@@ -509,7 +511,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
           <button
             type="button"
             onClick={() => onOpenGoalModal(goal.id)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] font-semibold text-slate-300 transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#120b0e] hover:bg-[#1e1015] border border-slate-800 text-[11px] font-semibold text-slate-300 transition-colors whitespace-nowrap"
           >
             <Pencil className="w-3 h-3" />
             <span>Editar</span>
@@ -526,19 +528,17 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
       </div>
 
       {/* Faixa Compacta de Resumo da Meta Ativa */}
-      <div className="rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 space-y-2">
+      <div className="rounded-xl bg-[#120b0e]/95 border border-slate-800/90 px-3.5 py-2.5 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           {/* Identidade + Cotação + Progresso */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center font-extrabold text-xs text-white shrink-0"
-              style={{ backgroundColor: goal.color || '#8b5cf6' }}
-            >
-              {goal.symbol.slice(0, 4)}
-            </div>
+            <CryptoLogo symbol={goal.symbol} color={goal.color} size={36} className="ring-1 ring-white/15 rounded-full" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-sm font-extrabold text-white">{goal.name}</h2>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300">
+                  {goal.symbol}
+                </span>
                 <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
                   {formatMoney(m.currentPriceUSD, state.currency, fxRate)}
                 </span>
@@ -652,12 +652,15 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
       {/* Área Principal: Registros Mensais em Grade Compacta / Tabela Inline (8 cols) + Gráfico Ao Vivo (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
         {/* Esquerda: Grade Compacta Multi-Mês ou Tabela Inline Densa */}
-        <div className="lg:col-span-8 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
+        <div className="lg:col-span-8 rounded-xl bg-[#120b0e]/95 border border-slate-800/90 overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-xs font-extrabold text-white tracking-tight">
-                Registros Mensais · {goal.symbol}
-              </h3>
+              <div className="inline-flex items-center gap-1.5">
+                <CryptoLogo symbol={goal.symbol} color={goal.color} size={17} />
+                <h3 className="text-xs font-extrabold text-white tracking-tight">
+                  Registros Mensais · {goal.symbol}
+                </h3>
+              </div>
 
               {/* Toggle Grade Compacta vs Tabela Inline */}
               <div className="inline-flex rounded-md bg-slate-950 p-0.5 border border-slate-800 text-[10px]">
@@ -665,8 +668,8 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                   type="button"
                   onClick={() => setScheduleView('GRID')}
                   title="Visualização em grade compacta (vários meses por linha)"
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold transition-colors ${
-                    scheduleView === 'GRID' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold transition-all ${
+                    scheduleView === 'GRID' ? 'spfc-gradient-btn text-white' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <LayoutGrid className="w-3 h-3" />
@@ -676,8 +679,8 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                   type="button"
                   onClick={() => setScheduleView('TABLE')}
                   title="Visualização em tabela inline densa"
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold transition-colors ${
-                    scheduleView === 'TABLE' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold transition-all ${
+                    scheduleView === 'TABLE' ? 'spfc-gradient-btn text-white' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   <List className="w-3 h-3" />
@@ -943,11 +946,14 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
         </div>
 
         {/* Direita: Gráfico DCA Automático em Tempo Real */}
-        <div className="lg:col-span-4 rounded-xl bg-slate-900 border border-slate-800 p-3 space-y-3">
+        <div className="lg:col-span-4 rounded-xl bg-[#120b0e]/95 border border-slate-800/90 p-3 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-1.5">
-            <div>
-              <h3 className="text-xs font-extrabold text-white">Gráfico DCA Ao Vivo</h3>
-              <p className="text-[10px] text-slate-400">Atualiza ao lançar compras</p>
+            <div className="flex items-center gap-2">
+              <CryptoLogo symbol={goal.symbol} color={goal.color} size={18} />
+              <div>
+                <h3 className="text-xs font-extrabold text-white">Gráfico DCA Ao Vivo</h3>
+                <p className="text-[10px] text-slate-400">Atualiza ao lançar compras</p>
+              </div>
             </div>
 
             <div className="inline-flex rounded-md bg-slate-950 p-0.5 border border-slate-800 text-[10px]">
@@ -962,8 +968,8 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setChartMode(tab.id)}
-                  className={`px-1.5 py-0.5 rounded font-bold transition-colors whitespace-nowrap ${
-                    chartMode === tab.id ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  className={`px-1.5 py-0.5 rounded font-bold transition-all whitespace-nowrap ${
+                    chartMode === tab.id ? 'spfc-gradient-btn text-white' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   {tab.label}

@@ -19,7 +19,7 @@ import {
   formatUSDT,
   getEffectiveUsdtBrlRate
 } from './utils/calculations';
-import { syncLivePrices } from './utils/priceService';
+import { subscribeLiveBinanceStream, syncLivePrices } from './utils/priceService';
 import { downloadCSVReport, downloadJSONBackup } from './utils/exportUtils';
 import {
   CloudGoalsSnapshotResult,
@@ -56,6 +56,7 @@ export default function App() {
   const isWritingCloudRef = useRef(false);
   const dirtyRef = useRef(false);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsConnectedRef = useRef(false);
 
   // Modal Criar/Editar Meta
   const [goalModalOpen, setGoalModalOpen] = useState(false);
@@ -425,20 +426,28 @@ export default function App() {
       const result = await syncLivePrices(current.goals, current.pricesUSD, current.usdtBrlRate);
 
       setState((prev) => {
+        const isConnectedNow = result.success || wsConnectedRef.current;
+        const nextPrices = result.success ? { ...prev.pricesUSD, ...result.pricesUSD } : prev.pricesUSD;
+        const nextFx = result.fxLive || result.success ? result.usdtBrlRate : prev.usdtBrlRate;
         const next: AppState = {
           ...prev,
-          pricesUSD: result.pricesUSD,
-          usdtBrlRate: result.usdtBrlRate,
-          isLiveConnected: result.success,
-          lastPriceUpdate: result.success ? new Date().toISOString() : prev.lastPriceUpdate,
-          priceSource: result.success
-            ? result.source
-            : !prev.lastPriceUpdate
-              ? 'Modo Offline / Referência'
-              : prev.priceSource
+          pricesUSD: nextPrices,
+          usdtBrlRate: nextFx,
+          isLiveConnected: isConnectedNow,
+          lastPriceUpdate: result.success || result.fxLive ? new Date().toISOString() : prev.lastPriceUpdate,
+          priceSource: wsConnectedRef.current
+            ? 'Binance Tempo Real (WS)'
+            : result.success
+              ? result.source
+              : result.fxLive
+                ? result.source
+                : !prev.lastPriceUpdate
+                  ? 'Modo Offline / Referência'
+                  : prev.priceSource
         };
-        if (result.success) {
+        if (result.success || result.fxLive) {
           saveState(next);
+          stateRef.current = next;
         }
         return next;
       });
@@ -446,6 +455,8 @@ export default function App() {
       if (manualTrigger) {
         if (result.success) {
           showToast(`Cotações sincronizadas via ${result.source}!`, 'success');
+        } else if (result.fxLive) {
+          showToast('Cotação do Dólar atualizada! Criptos em modo de referência.', 'info');
         } else {
           showToast('APIs externas bloqueadas neste ambiente. Usando cotações locais.', 'info');
         }
@@ -456,13 +467,60 @@ export default function App() {
     [showToast]
   );
 
+  // Sincronização REST inicial + respaldo a cada 15s (atualiza criptos customizadas e persiste localStorage)
   useEffect(() => {
-    handleRefreshPrices(false);
+    void handleRefreshPrices(false);
     const intervalId = setInterval(() => {
-      handleRefreshPrices(false);
-    }, 12000);
+      void handleRefreshPrices(false);
+    }, 15000);
     return () => clearInterval(intervalId);
   }, [handleRefreshPrices]);
+
+  // Stream WebSocket em tempo real (tick-a-tick) para todas as criptos e Dólar (USDT/BRL)
+  const goalSymbolsKey = state.goals
+    .map((g) => g.symbol.toUpperCase())
+    .sort()
+    .join(',');
+
+  useEffect(() => {
+    const unsubscribe = subscribeLiveBinanceStream(stateRef.current.goals, {
+      onStatusChange: (connected) => {
+        wsConnectedRef.current = connected;
+        if (connected) {
+          setState((prev) => ({
+            ...prev,
+            isLiveConnected: true,
+            priceSource: 'Binance Tempo Real (WS)'
+          }));
+        }
+      },
+      onTick: (tick) => {
+        wsConnectedRef.current = true;
+        setState((prev) => {
+          const nextPrices =
+            Object.keys(tick.priceUpdates).length > 0
+              ? { ...prev.pricesUSD, ...tick.priceUpdates }
+              : prev.pricesUSD;
+          const nextFx = tick.usdtBrlRate && tick.usdtBrlRate > 0 ? tick.usdtBrlRate : prev.usdtBrlRate;
+          const next: AppState = {
+            ...prev,
+            pricesUSD: nextPrices,
+            usdtBrlRate: nextFx,
+            isLiveConnected: true,
+            lastPriceUpdate: new Date().toISOString(),
+            priceSource: 'Binance Tempo Real (WS)'
+          };
+          stateRef.current = next;
+          return next;
+        });
+      }
+    });
+
+    return () => {
+      wsConnectedRef.current = false;
+      unsubscribe();
+    };
+  }, [goalSymbolsKey]);
 
   const handleSetCurrency = (mode: CurrencyMode) => {
     updateAndPersist((prev) => ({ ...prev, currency: mode }));
@@ -612,6 +670,10 @@ export default function App() {
       'success'
     );
     setGoalModalOpen(false);
+    // Sincroniza imediatamente a cotação ao vivo da cripto recém-adicionada/editada
+    setTimeout(() => {
+      void handleRefreshPrices(false);
+    }, 60);
   };
 
   const handleDeleteGoal = (goalId: string) => {
@@ -952,7 +1014,7 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100">
+    <div className="min-h-screen flex flex-col bg-transparent text-slate-100">
       <Header
         state={state}
         isSyncing={isSyncing}
@@ -975,7 +1037,7 @@ export default function App() {
         <GlobalKPIs state={state} onUpdateRetirementGoal={handleUpdateRetirementGoal} />
 
         {/* Navegação Principal */}
-        <section className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <section className="flex flex-wrap items-center justify-between gap-3 border-b border-red-950/60 pb-3">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
             {navTabs.map((tab) => {
               const active = state.mainTab === tab.id;
@@ -984,16 +1046,20 @@ export default function App() {
                   key={tab.id}
                   type="button"
                   onClick={() => handleSelectMainTab(tab.id)}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap shrink-0 ${
                     active
-                      ? 'bg-slate-800 text-white border border-emerald-500/50'
-                      : 'bg-slate-900/70 text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
+                      ? 'bg-gradient-to-r from-[#D91E2A]/25 via-[#9E0F1B]/20 to-[#180a0e] text-white border border-[#E11D2E]/60 shadow-sm shadow-red-950/50'
+                      : 'bg-[#120b0e]/85 text-slate-400 hover:text-white hover:bg-[#1b0e12] border border-slate-800/90'
                   }`}
                 >
-                  <span className={active ? 'text-emerald-400' : 'text-slate-400'}>{tab.icon}</span>
+                  <span className={active ? 'text-[#ff4d5a]' : 'text-slate-400'}>{tab.icon}</span>
                   <span>{tab.label}</span>
                   {tab.badge && (
-                    <span className="text-[11px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950 text-emerald-400 tabular-nums">
+                    <span
+                      className={`text-[11px] font-mono px-1.5 py-0.5 rounded-md tabular-nums ${
+                        active ? 'bg-[#D91E2A] text-white' : 'bg-slate-950 text-slate-300'
+                      }`}
+                    >
                       {tab.badge}
                     </span>
                   )}
@@ -1005,7 +1071,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => handleOpenGoalModal()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl spfc-gradient-btn text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-red-950/50 border border-white/10 whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Nova Meta Cripto</span>

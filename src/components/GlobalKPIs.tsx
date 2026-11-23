@@ -66,8 +66,8 @@ export const GlobalKPIs: React.FC<GlobalKPIsProps> = ({ state, onUpdateRetiremen
 
   return (
     <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <div className="rounded-xl bg-slate-900/90 border border-slate-800 px-4 py-3.5">
-        <div className="text-[11px] font-semibold text-slate-400">Patrimônio Acumulado</div>
+      <div className="rounded-xl bg-gradient-to-br from-[#23090f]/95 via-[#140b0e]/95 to-[#100a0d]/95 border border-red-600/35 px-4 py-3.5 shadow-sm shadow-red-950/30">
+        <div className="text-[11px] font-semibold text-red-200/80">Patrimônio Acumulado</div>
         <div className="text-lg sm:text-xl font-extrabold text-white tabular-nums font-mono mt-0.5">
           <DualMoney
             amountUSD={totalPortfolioUSD}
@@ -82,7 +82,7 @@ export const GlobalKPIs: React.FC<GlobalKPIsProps> = ({ state, onUpdateRetiremen
         </div>
       </div>
 
-      <div className="rounded-xl bg-slate-900/90 border border-slate-800 px-4 py-3.5">
+      <div className="rounded-xl bg-[#120b0e]/90 border border-slate-800/90 px-4 py-3.5">
         <div className="text-[11px] font-semibold text-slate-400">Total Investido (DCA)</div>
         <div className="text-lg sm:text-xl font-extrabold text-white tabular-nums font-mono mt-0.5">
           <DualMoney
@@ -103,7 +103,7 @@ export const GlobalKPIs: React.FC<GlobalKPIsProps> = ({ state, onUpdateRetiremen
         </div>
       </div>
 
-      <div className="rounded-xl bg-slate-900/90 border border-slate-800 px-4 py-3.5">
+      <div className="rounded-xl bg-[#120b0e]/90 border border-slate-800/90 px-4 py-3.5">
         <div className="text-[11px] font-semibold text-slate-400">Resultado das Compras</div>
         <div
           className={`text-lg sm:text-xl font-extrabold tabular-nums font-mono mt-0.5 ${
@@ -127,7 +127,7 @@ export const GlobalKPIs: React.FC<GlobalKPIsProps> = ({ state, onUpdateRetiremen
       </div>
 
       {/* Card 4: Alvo de Aposentadoria Editável + Certificação */}
-      <div className="rounded-xl bg-slate-900/90 border border-amber-500/30 px-4 py-3.5">
+      <div className="rounded-xl bg-[#120b0e]/90 border border-amber-500/35 px-4 py-3.5">
         <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-amber-300">
           <span>Alvo Aposentadoria</span>
           <button

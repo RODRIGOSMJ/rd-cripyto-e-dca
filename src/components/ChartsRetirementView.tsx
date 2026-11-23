@@ -12,6 +12,7 @@ import {
   getMultiplier
 } from '../utils/calculations';
 import { NumericInput } from './NumericInput';
+import { CryptoLogo } from './CryptoLogo';
 
 Chart.register(...registerables);
 
@@ -209,8 +210,8 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Simulador de Ciclo & Meta de Aposentadoria */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 space-y-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5 sm:p-6 space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-red-950/60 pb-4">
           <div>
             <h2 className="text-lg sm:text-xl font-extrabold text-white">
               Simulador de Ciclo &amp; Certificação da Aposentadoria
@@ -271,7 +272,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
               step="0.5"
               value={multCycle}
               onChange={(e) => onUpdateCycleMultiplier(parseFloat(e.target.value) || 1)}
-              className="w-full accent-emerald-500 cursor-pointer"
+              className="w-full accent-[#E11D2E] cursor-pointer"
             />
             <div className="flex justify-between text-[11px] font-mono text-slate-500">
               <span>1.0x (Alvo Base)</span>
@@ -338,10 +339,13 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
 
       {/* 3 Gráficos Chart.js */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+        <div className="rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5">
           <div className="mb-3">
-            <h3 className="text-sm font-bold text-white">
-              Preço Médio Pago ({goal.symbol} em {currSymbol})
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <CryptoLogo symbol={goal.symbol} color={goal.color} size={18} />
+              <span>
+                Preço Médio Pago ({goal.symbol} em {currSymbol})
+              </span>
             </h3>
             <p className="text-xs text-slate-400">Preço médio acumulado mês a mês vs cotação atual</p>
           </div>
@@ -350,9 +354,12 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+        <div className="rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5">
           <div className="mb-3">
-            <h3 className="text-sm font-bold text-white">Acúmulo de Moedas ({goal.symbol})</h3>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <CryptoLogo symbol={goal.symbol} color={goal.color} size={18} />
+              <span>Acúmulo de Moedas ({goal.symbol})</span>
+            </h3>
             <p className="text-xs text-slate-400">
               Progresso real vs trajetória da meta ({formatCryptoQty(goal.targetAmount)})
             </p>
@@ -362,7 +369,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
           </div>
         </div>
 
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5">
+        <div className="rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5">
           <div className="mb-3">
             <h3 className="text-sm font-bold text-white">Distribuição Atual da Carteira</h3>
             <p className="text-xs text-slate-400">
@@ -376,8 +383,8 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
       </div>
 
       {/* Tabela Resumo Consolidado Multi-Cripto com Edição de Preço-Alvo de Venda */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
-        <div className="p-5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <div className="rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 overflow-hidden">
+        <div className="p-5 border-b border-red-950/60 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-bold text-white">Somatório Consolidado &amp; Preços-Alvo de Venda</h3>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -399,8 +406,14 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-800/70 text-xs sm:text-sm tabular-nums">
               {summaries.map(({ goal: g, metrics: gm }) => (
-                <tr key={g.id} className="hover:bg-slate-800/40">
-                  <td className="py-3 px-4 font-bold text-white whitespace-nowrap">{g.name}</td>
+                <tr key={g.id} className="hover:bg-red-950/20">
+                  <td className="py-3 px-4 font-bold text-white whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <CryptoLogo symbol={g.symbol} color={g.color} size={22} />
+                      <span>{g.name}</span>
+                      <span className="text-[11px] font-mono text-slate-400">{g.symbol}</span>
+                    </div>
+                  </td>
                   <td className="py-3 px-4 font-mono text-slate-300 whitespace-nowrap">
                     {formatCryptoQty(gm.totalAccumulatedCoins)} / {formatCryptoQty(g.targetAmount, g.symbol)}
                   </td>

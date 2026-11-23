@@ -14,6 +14,7 @@ import { User } from 'firebase/auth';
 import { AppState, CurrencyMode } from '../types';
 import { SUPPORTED_CRYPTOS } from '../constants';
 import { formatBRL, formatMoney, formatUSDT, getEffectiveUsdtBrlRate } from '../utils/calculations';
+import { CryptoLogo } from './CryptoLogo';
 
 export type CloudSyncStatus = 'offline' | 'loading' | 'syncing' | 'saved' | 'error';
 
@@ -81,24 +82,41 @@ export const Header: React.FC<HeaderProps> = ({
   }
 
   const firstName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Conta';
+  const lastSyncTime = state.lastPriceUpdate
+    ? new Date(state.lastPriceUpdate).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    : null;
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0b0f19]/95 backdrop-blur-md border-b border-slate-800/90">
+    <header className="sticky top-0 z-40 bg-gradient-to-r from-[#18070b]/95 via-[#0f090c]/95 to-[#18070b]/95 backdrop-blur-md border-b border-red-950/60">
+      {/* Faixa Tricolor inspirada no São Paulo FC */}
+      <div className="h-[3px] w-full spfc-tricolor-stripe" aria-hidden="true" />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Marca */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 font-extrabold text-xs tracking-tight">
+          <div className="w-8 h-8 rounded-lg spfc-gradient-btn ring-1 ring-white/20 shadow-md shadow-red-950/60 flex items-center justify-center text-white font-extrabold text-xs tracking-tight">
             RG
           </div>
           <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white whitespace-nowrap">
-            RG Crypto <span className="text-emerald-400">DCA</span>
+            RG Crypto <span className="text-[#ff3b4a]">DCA</span>
           </h1>
         </div>
 
         {/* Controles compactos */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Status real da API + Câmbio */}
-          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] whitespace-nowrap shrink-0">
+          <div
+            title={
+              lastSyncTime
+                ? `Fonte: ${state.priceSource} · 1 USDT = R$ ${fxRate.toFixed(4).replace('.', ',')} · Atualizado às ${lastSyncTime}`
+                : `Fonte: ${state.priceSource}`
+            }
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#120a0d] border border-red-950/70 text-[11px] whitespace-nowrap shrink-0"
+          >
             <span className="relative flex h-2 w-2">
               <span
                 className={
@@ -108,18 +126,21 @@ export const Header: React.FC<HeaderProps> = ({
                 }
               />
             </span>
-            <span className="text-slate-300 font-medium hidden md:inline">
+            <span className="text-slate-200 font-medium hidden md:inline">
               {state.isLiveConnected ? state.priceSource : 'Offline'}
             </span>
-            <span className="text-emerald-400 font-mono font-semibold tabular-nums md:border-l md:border-slate-800 md:pl-2">
-              1 USDT = R$ {fxRate.toFixed(2).replace('.', ',')}
-              {state.manualFxOverride ? ' [Trava]' : ''}
+            <span className="inline-flex items-center gap-1.5 text-emerald-400 font-mono font-semibold tabular-nums md:border-l md:border-red-950/70 md:pl-2">
+              <CryptoLogo symbol="USDT" size={14} />
+              <span>
+                1 USDT = R$ {fxRate.toFixed(2).replace('.', ',')}
+                {state.manualFxOverride ? ' [Trava]' : ''}
+              </span>
             </span>
           </div>
 
           {/* Seletor 3 Modos */}
           <div
-            className="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800 shrink-0"
+            className="inline-flex rounded-lg bg-[#120a0d] p-0.5 border border-red-950/70 shrink-0"
             role="group"
             aria-label="Modo de exibição monetária"
           >
@@ -136,8 +157,8 @@ export const Header: React.FC<HeaderProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => onSetCurrency(item.id)}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 ${
-                    active ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all whitespace-nowrap shrink-0 ${
+                    active ? 'spfc-gradient-btn text-white shadow-sm' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   {item.label}
@@ -331,8 +352,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Ticker Compacto */}
-      <div className="bg-slate-950/80 border-t border-slate-800/60 py-1.5 px-4 sm:px-6 overflow-x-auto">
+      {/* Ticker Compacto com Logos Oficiais */}
+      <div className="bg-[#0a0709]/85 border-t border-red-950/50 py-1.5 px-4 sm:px-6 overflow-x-auto">
         <div className="max-w-7xl mx-auto flex items-center gap-2 text-[11px] whitespace-nowrap">
           {tickerAssets.map((asset) => {
             const pUSD = Number(state.pricesUSD[asset.symbol]) || 0;
@@ -342,14 +363,15 @@ export const Header: React.FC<HeaderProps> = ({
                 key={asset.symbol}
                 type="button"
                 onClick={() => onTickerClick(asset.symbol)}
+                title={`${asset.name} (${asset.symbol})`}
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-colors shrink-0 whitespace-nowrap ${
                   hasGoal
-                    ? 'bg-slate-800/80 border border-slate-700/80 hover:border-emerald-500/50'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    ? 'bg-[#190d11]/90 border border-red-900/50 hover:border-[#E11D2E]/70'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#170c10]'
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: asset.color }} />
-                <span className="font-bold text-slate-200">{asset.symbol}</span>
+                <CryptoLogo symbol={asset.symbol} color={asset.color} size={16} />
+                <span className="font-bold text-slate-100">{asset.symbol}</span>
                 <span className="font-mono text-emerald-400 font-semibold tabular-nums">
                   {pUSD > 0 ? (
                     state.currency === 'HYBRID' ? (

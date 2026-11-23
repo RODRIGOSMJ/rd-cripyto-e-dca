@@ -9,6 +9,7 @@ import {
   formatUSDT,
   getEffectiveUsdtBrlRate
 } from '../utils/calculations';
+import { CryptoLogo } from './CryptoLogo';
 
 interface ConverterViewProps {
   state: AppState;
@@ -49,8 +50,8 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       {/* Calculadora Bidirecional */}
-      <div className="lg:col-span-7 rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+      <div className="lg:col-span-7 rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5 sm:p-6 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-950/60 pb-4">
           <div>
             <h2 className="text-lg sm:text-xl font-extrabold text-white">Conversor Avançado USDT ↔ BRL</h2>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -61,22 +62,25 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
           <button
             type="button"
             onClick={onToggleDirection}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-xs font-bold text-sky-300 transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#D91E2A]/15 hover:bg-[#D91E2A]/25 border border-[#E11D2E]/40 text-xs font-bold text-red-200 transition-colors whitespace-nowrap shrink-0"
           >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
+            <ArrowRightLeft className="w-3.5 h-3.5 text-[#ff4d5a]" />
             <span>{isBrlToUsdt ? 'Modo: BRL → USDT' : 'Modo: USDT → BRL'}</span>
           </button>
         </div>
 
         {/* Taxa de Câmbio & Trava Manual */}
-        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-semibold text-slate-400">Cotação Base USDT/BRL</div>
-            <div className="text-base font-mono font-extrabold text-emerald-400 mt-0.5 tabular-nums">
-              1 USDT = R$ {res.spotFx.toFixed(4).replace('.', ',')}{' '}
-              <span className="text-[11px] font-sans font-normal text-slate-400 ml-1">
-                ({state.manualFxOverride ? 'Trava Manual' : state.priceSource})
-              </span>
+        <div className="p-4 rounded-xl bg-slate-950/90 border border-red-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <CryptoLogo symbol="USDT" size={26} />
+            <div>
+              <div className="text-xs font-semibold text-slate-400">Cotação Base USDT/BRL</div>
+              <div className="text-base font-mono font-extrabold text-emerald-400 mt-0.5 tabular-nums">
+                1 USDT = R$ {res.spotFx.toFixed(4).replace('.', ',')}{' '}
+                <span className="text-[11px] font-sans font-normal text-slate-400 ml-1">
+                  ({state.manualFxOverride ? 'Trava Manual' : state.priceSource})
+                </span>
+              </div>
             </div>
           </div>
 
@@ -235,7 +239,7 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
       </div>
 
       {/* Resumo Efetivo & Lançamento Direto */}
-      <div className="lg:col-span-5 rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 space-y-4">
+      <div className="lg:col-span-5 rounded-2xl bg-[#120b0e]/95 border border-slate-800/90 p-5 sm:p-6 space-y-4">
         <h3 className="text-sm font-bold text-slate-300">Resumo Efetivo &amp; Poder de Compra</h3>
 
         <div className="space-y-2 text-xs sm:text-sm tabular-nums">
@@ -277,8 +281,11 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
               ))}
             </select>
           </div>
-          <div className="text-2xl font-extrabold text-white font-mono tabular-nums">
-            {formatCryptoQty(res.purchasableCryptoQty, c.targetSymbol)}
+          <div className="flex items-center gap-2.5">
+            <CryptoLogo symbol={c.targetSymbol} size={28} />
+            <div className="text-2xl font-extrabold text-white font-mono tabular-nums">
+              {formatCryptoQty(res.purchasableCryptoQty, c.targetSymbol)}
+            </div>
           </div>
           <div className="text-xs text-slate-400 font-mono tabular-nums">
             Cotação {c.targetSymbol}/USDT: {formatUSDT(res.targetPriceUSD)}
@@ -316,7 +323,7 @@ export const ConverterView: React.FC<ConverterViewProps> = ({
             <button
               type="button"
               onClick={onApplyConversionToSchedule}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition-colors"
+              className="w-full py-2.5 px-4 rounded-xl spfc-gradient-btn text-white font-extrabold text-xs transition-all shadow-md shadow-red-950/50 border border-white/10"
             >
               Aplicar Compra ao Mês Selecionado
             </button>

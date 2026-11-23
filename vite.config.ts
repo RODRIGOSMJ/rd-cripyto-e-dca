@@ -49,7 +49,12 @@ export default defineConfig(() => {
         workbox: {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
+            {
+              urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+              handler: 'NetworkOnly',
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',

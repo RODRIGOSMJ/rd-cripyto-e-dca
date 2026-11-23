@@ -27,7 +27,7 @@ function sanitizeText(text: string): string {
 
 export function downloadAiPortfolioPDF(
   snapshot: PortfolioReportSnapshot,
-  report: AiPortfolioReport,
+  report: AiPortfolioReport | null,
   generatedAtISO: string
 ): boolean {
   try {
@@ -129,7 +129,13 @@ export function downloadAiPortfolioPDF(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(226, 232, 240);
-    doc.text('Relatorio Completo Gerado por Inteligencia Artificial', margin + 15.5, 19);
+    doc.text(
+      report
+        ? 'Relatorio Completo Gerado por Inteligencia Artificial'
+        : 'Relatorio Completo da Carteira DCA & Aposentadoria',
+      margin + 15.5,
+      19
+    );
 
     doc.setFontSize(8);
     doc.setTextColor(203, 213, 225);
@@ -147,32 +153,36 @@ export function downloadAiPortfolioPDF(
       { align: 'right' }
     );
 
-    // Badge Score de Saúde da Carteira
+    // Badge Score de Saúde da Carteira (quando relatório IA presente)
     let y = 41;
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(...COLOR_BORDER);
-    doc.roundedRect(margin, y, contentW, 20, 3, 3, 'FD');
+    if (report) {
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(...COLOR_BORDER);
+      doc.roundedRect(margin, y, contentW, 20, 3, 3, 'FD');
 
-    doc.setFillColor(...COLOR_CRIMSON);
-    doc.roundedRect(margin + 3.5, y + 3.5, 28, 13, 2.5, 2.5, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(255, 255, 255);
-    doc.text(`${Math.max(0, Math.min(100, report.healthScore))}/100`, margin + 17.5, y + 10.5, { align: 'center' });
-    doc.setFontSize(6.5);
-    doc.text(sanitizeText(report.healthLabel.toUpperCase()), margin + 17.5, y + 14.8, { align: 'center' });
+      doc.setFillColor(...COLOR_CRIMSON);
+      doc.roundedRect(margin + 3.5, y + 3.5, 28, 13, 2.5, 2.5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${Math.max(0, Math.min(100, report.healthScore))}/100`, margin + 17.5, y + 10.5, {
+        align: 'center'
+      });
+      doc.setFontSize(6.5);
+      doc.text(sanitizeText(report.healthLabel.toUpperCase()), margin + 17.5, y + 14.8, { align: 'center' });
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
-    doc.setTextColor(...COLOR_TEXT);
-    const headlineLines = doc.splitTextToSize(sanitizeText(report.headline), contentW - 38) as string[];
-    doc.text(headlineLines.slice(0, 2), margin + 35, y + 8.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
-    doc.setTextColor(...COLOR_MUTED);
-    doc.text('Diagnostico consolidado com base nos precos em tempo real e metas cadastradas.', margin + 35, y + 17);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(...COLOR_TEXT);
+      const headlineLines = doc.splitTextToSize(sanitizeText(report.headline), contentW - 38) as string[];
+      doc.text(headlineLines.slice(0, 2), margin + 35, y + 8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.8);
+      doc.setTextColor(...COLOR_MUTED);
+      doc.text('Diagnostico consolidado com base nos precos em tempo real e metas cadastradas.', margin + 35, y + 17);
 
-    y += 26;
+      y += 26;
+    }
 
     // ==================== KPIs GLOBAIS ====================
     y = drawSectionHeader('1. Panorama Financeiro Global', y);
@@ -236,26 +246,28 @@ export function downloadAiPortfolioPDF(
     y = (doc.lastAutoTable?.finalY ?? y + 55) + 8;
 
     // ==================== RESUMO EXECUTIVO IA ====================
-    y = drawSectionHeader('2. Resumo Executivo da Inteligencia Artificial', y);
-    y = drawParagraph(report.executiveSummary, y);
+    if (report) {
+      y = drawSectionHeader('2. Resumo Executivo da Inteligencia Artificial', y);
+      y = drawParagraph(report.executiveSummary, y);
 
-    y = drawSectionHeader('3. Fluxo Mensal de Aportes & Cambio USDT/BRL', y);
-    y = drawParagraph(report.cashflowAndFxAnalysis, y);
+      y = drawSectionHeader('3. Fluxo Mensal de Aportes & Cambio USDT/BRL', y);
+      y = drawParagraph(report.cashflowAndFxAnalysis, y);
 
-    y = drawSectionHeader('4. Diagnostico de Aposentadoria & Ciclos', y);
-    y = drawParagraph(report.retirementAnalysis, y);
+      y = drawSectionHeader('4. Diagnostico de Aposentadoria & Ciclos', y);
+      y = drawParagraph(report.retirementAnalysis, y);
 
-    // ==================== PONTOS FORTES & RISCOS ====================
-    y = drawSectionHeader('5. Pontos Fortes da Carteira', y);
-    y = drawBulletList(report.strengths, y, COLOR_EMERALD);
+      // ==================== PONTOS FORTES & RISCOS ====================
+      y = drawSectionHeader('5. Pontos Fortes da Carteira', y);
+      y = drawBulletList(report.strengths, y, COLOR_EMERALD);
 
-    y = drawSectionHeader('6. Alertas, Riscos & Pontos de Atencao', y);
-    y = drawBulletList(report.risks, y, COLOR_CRIMSON);
+      y = drawSectionHeader('6. Alertas, Riscos & Pontos de Atencao', y);
+      y = drawBulletList(report.risks, y, COLOR_CRIMSON);
+    }
 
     // ==================== TABELA CONSOLIDADA DE ATIVOS ====================
     doc.addPage();
     y = 18;
-    y = drawSectionHeader('7. Raio-X Completo de Todas as Criptomoedas', y);
+    y = drawSectionHeader(report ? '7. Raio-X Completo de Todas as Criptomoedas' : '2. Raio-X Completo de Todas as Criptomoedas', y);
 
     autoTable(doc, {
       startY: y,
@@ -288,7 +300,7 @@ export function downloadAiPortfolioPDF(
     y = (doc.lastAutoTable?.finalY ?? y + 40) + 8;
 
     // ==================== PARECER IA POR ATIVO ====================
-    if (report.assetInsights.length > 0) {
+    if (report && report.assetInsights.length > 0) {
       y = drawSectionHeader('8. Analise Estrategica Individual por Cripto', y);
       for (const item of report.assetInsights) {
         y = ensureSpace(18, y);
@@ -306,15 +318,20 @@ export function downloadAiPortfolioPDF(
     }
 
     // ==================== PLANO DE ACAO ====================
-    y = drawSectionHeader('9. Plano de Acao Priorizado', y);
-    report.actionPlan.forEach((step, idx) => {
-      y = drawParagraph(`${idx + 1}. ${step}`, y, 9);
-    });
+    if (report && report.actionPlan.length > 0) {
+      y = drawSectionHeader('9. Plano de Acao Priorizado', y);
+      report.actionPlan.forEach((step, idx) => {
+        y = drawParagraph(`${idx + 1}. ${step}`, y, 9);
+      });
+    }
 
     // ==================== CRONOGRAMA MENSAL DETALHADO ====================
     doc.addPage();
     y = 18;
-    y = drawSectionHeader('10. Cronograma Mensal Detalhado (Todas as Criptos)', y);
+    y = drawSectionHeader(
+      report ? '10. Cronograma Mensal Detalhado (Todas as Criptos)' : '3. Cronograma Mensal Detalhado (Todas as Criptos)',
+      y
+    );
 
     for (const g of snapshot.goals) {
       y = ensureSpace(28, y);
@@ -352,7 +369,10 @@ export function downloadAiPortfolioPDF(
 
     // ==================== CONVERSOR & AVISO LEGAL ====================
     y = ensureSpace(32, y);
-    y = drawSectionHeader('11. Configuracao do Conversor USDT <-> BRL & Nota Legal', y);
+    y = drawSectionHeader(
+      report ? '11. Configuracao do Conversor USDT <-> BRL & Nota Legal' : '4. Configuracao do Conversor USDT <-> BRL',
+      y
+    );
     y = drawParagraph(
       `Simulacao atual do conversor: ${formatBRL(snapshot.converter.grossBRL, 2)} -> ${formatUSDT(snapshot.converter.netUSDT, 2)} liquidos ` +
         `(Taxa corretora: ${snapshot.converter.exchangeFeePct}% | Spread Pix: ${snapshot.converter.pixSpreadPct}% | ` +
@@ -360,7 +380,9 @@ export function downloadAiPortfolioPDF(
       y,
       8.5
     );
-    y = drawParagraph(report.disclaimer, y, 8);
+    if (report?.disclaimer) {
+      y = drawParagraph(report.disclaimer, y, 8);
+    }
 
     // Rodapé paginado em todas as páginas
     const totalPages = doc.getNumberOfPages();

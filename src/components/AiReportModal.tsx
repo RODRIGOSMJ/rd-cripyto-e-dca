@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AppState } from '../types';
 import {
+  buildPortfolioReportSnapshot,
   fetchAiPortfolioReport,
   GenerateAiReportResult
 } from '../services/aiReportService';
@@ -53,7 +54,11 @@ export const AiReportModal: React.FC<AiReportModalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen && !result && !loading) {
+    if (!isOpen) {
+      setError(null);
+      return;
+    }
+    if (!result && !loading) {
       void runGeneration();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,6 +73,18 @@ export const AiReportModal: React.FC<AiReportModalProps> = ({
     setExportingPdf(false);
     if (ok) {
       onNotify('Relatório completo em PDF baixado com sucesso!', 'success');
+    } else {
+      onNotify('Não foi possível gerar o arquivo PDF.', 'error');
+    }
+  };
+
+  const handleDownloadDataOnlyPDF = () => {
+    setExportingPdf(true);
+    const snapshot = buildPortfolioReportSnapshot(state);
+    const ok = downloadAiPortfolioPDF(snapshot, null, new Date().toISOString());
+    setExportingPdf(false);
+    if (ok) {
+      onNotify('PDF completo com todos os dados da carteira baixado!', 'success');
     } else {
       onNotify('Não foi possível gerar o arquivo PDF.', 'error');
     }
@@ -156,16 +173,27 @@ export const AiReportModal: React.FC<AiReportModalProps> = ({
           {!loading && error && (
             <div className="p-5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-center space-y-3">
               <AlertTriangle className="w-8 h-8 text-rose-400 mx-auto" />
-              <div className="text-sm font-bold text-white">Não foi possível gerar o relatório agora</div>
-              <p className="text-xs text-rose-200 max-w-md mx-auto">{error}</p>
-              <button
-                type="button"
-                onClick={() => void runGeneration()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl spfc-gradient-btn text-white text-xs font-bold"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Tentar Novamente</span>
-              </button>
+              <div className="text-sm font-bold text-white">Não foi possível gerar a análise da IA agora</div>
+              <p className="text-xs text-rose-200 max-w-md mx-auto leading-relaxed">{error}</p>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => void runGeneration()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl spfc-gradient-btn text-white text-xs font-bold"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Tentar IA Novamente</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={exportingPdf}
+                  onClick={handleDownloadDataOnlyPDF}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white text-xs font-bold transition-colors"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Baixar PDF dos Dados (sem IA)</span>
+                </button>
+              </div>
             </div>
           )}
 

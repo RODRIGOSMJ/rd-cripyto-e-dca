@@ -268,17 +268,28 @@ export async function fetchAiPortfolioReport(state: AppState): Promise<GenerateA
   const response = await fetch('/api/ai-report', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
     body: JSON.stringify({ snapshot: compactForAi })
   });
 
-  const data = (await response.json().catch(() => ({}))) as {
+  const rawText = await response.text();
+  let data: {
     generatedAt?: string;
     report?: AiPortfolioReport;
     error?: string;
-  };
+  } = {};
+
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    // Resposta não-JSON (ex: servidor reiniciando ou rota indisponível)
+  }
 
   if (!response.ok || !data.report) {
-    throw new Error(data.error || 'Falha ao gerar o relatório de IA no servidor.');
+    throw new Error(
+      data.error ||
+        `Erro HTTP ${response.status} ao gerar o relatório de IA no servidor. Tente novamente.`
+    );
   }
 
   return {

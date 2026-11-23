@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR" class="dark" style="background-color:#09080b;color:#f1f5f9;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -19,10 +19,54 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        var RECOVERY_KEY = 'rg_dca_sw_recovery_ts';
+        function clearCachesAndReload() {
+          try {
+            var last = Number(sessionStorage.getItem(RECOVERY_KEY) || 0);
+            if (Date.now() - last < 15000) return;
+            sessionStorage.setItem(RECOVERY_KEY, String(Date.now()));
+          } catch (e) {}
+          var tasks = [];
+          if ('serviceWorker' in navigator) {
+            tasks.push(
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(regs.map(function (r) { return r.unregister(); }));
+              }).catch(function () {})
+            );
+          }
+          if ('caches' in window) {
+            tasks.push(
+              caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              }).catch(function () {})
+            );
+          }
+          Promise.all(tasks).finally(function () {
+            window.location.reload();
+          });
+        }
+
+        window.addEventListener('error', function (evt) {
+          var target = evt && evt.target;
+          if (!target) return;
+          var tag = target.tagName;
+          var url = (tag === 'SCRIPT' ? target.src : tag === 'LINK' ? target.href : '') || '';
+          if (url.indexOf('/assets/') !== -1) {
+            clearCachesAndReload();
+          }
+        }, true);
+
+        window.addEventListener('vite:preloadError', function (evt) {
+          if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+          clearCachesAndReload();
+        });
+      })();
+    </script>
   </head>
-  <body class="min-h-screen bg-[#09080b] text-slate-100 antialiased selection:bg-red-500/30 selection:text-red-100">
+  <body class="min-h-screen bg-[#09080b] text-slate-100 antialiased selection:bg-red-500/30 selection:text-red-100" style="background-color:#09080b;color:#f1f5f9;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

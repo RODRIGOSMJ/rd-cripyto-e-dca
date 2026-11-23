@@ -1,9 +1,11 @@
 import { AppState } from '../types';
 import {
+  DEFAULT_PLAN_MONTHS,
   STORAGE_KEY,
   buildInitialPricesMap,
   getDefaultGoals,
-  getFutureMonthLabel
+  getFutureMonthLabel,
+  migrateGoalStartToDecember
 } from '../constants';
 
 const memoryStorage: Record<string, string> = {};
@@ -94,7 +96,7 @@ export function normalizeLoadedState(parsed: Partial<AppState> | null | undefine
     : base.converter;
 
   const goals = parsed.goals.map((g) => {
-    const mCount = Math.min(120, Math.max(1, parseInt(String(g.monthsCount), 10) || 12));
+    const mCount = Math.min(120, Math.max(1, parseInt(String(g.monthsCount), 10) || DEFAULT_PLAN_MONTHS));
     const recs = Array.isArray(g.monthlyRecords) ? g.monthlyRecords : [];
     const normalizedRecs = Array.from({ length: mCount }, (_, idx) => {
       const r = recs[idx];
@@ -108,7 +110,7 @@ export function normalizeLoadedState(parsed: Partial<AppState> | null | undefine
     });
 
     const symbol = String(g.symbol || 'POL').toUpperCase();
-    return {
+    const baseGoal = {
       id: String(g.id || `${symbol}_${Date.now()}`),
       symbol,
       name: String(g.name || symbol || 'Cripto'),
@@ -122,6 +124,8 @@ export function normalizeLoadedState(parsed: Partial<AppState> | null | undefine
       retirementTargetPriceUSD: Math.max(0, Number(g.retirementTargetPriceUSD) || 0),
       monthlyRecords: normalizedRecs
     };
+
+    return migrateGoalStartToDecember(baseGoal, usdtBrlRate).goal;
   });
 
   const selectedGoalId = goals.some((g) => g.id === parsed.selectedGoalId)

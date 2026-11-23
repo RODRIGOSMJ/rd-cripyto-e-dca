@@ -23,11 +23,46 @@ export function buildInitialPricesMap(): Record<string, number> {
   return map;
 }
 
+export const DEFAULT_PLAN_MONTHS = 13;
+
 export function getFutureMonthLabel(offsetMonths: number): string {
-  const date = new Date();
-  date.setMonth(date.getMonth() + offsetMonths);
+  const now = new Date();
+  const baseYear = now.getFullYear();
+  // Início padrão em Dezembro do ano atual (mês 11 em base 0), evitando estouro de dia
+  const date = new Date(baseYear, 11 + offsetMonths, 1);
   const monthsPt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   return `${monthsPt[date.getMonth()]}/${String(date.getFullYear()).slice(-2)}`;
+}
+
+export function migrateGoalStartToDecember(
+  goal: CryptoGoal,
+  defaultFx: number = 5.85
+): { goal: CryptoGoal; changed: boolean } {
+  const firstLabel = String(goal.monthlyRecords?.[0]?.label || '');
+  if (!firstLabel.startsWith('Nov/')) {
+    return { goal, changed: false };
+  }
+
+  const nextMonthsCount = goal.monthsCount === 12 ? DEFAULT_PLAN_MONTHS : goal.monthsCount;
+  const migratedRecords = Array.from({ length: nextMonthsCount }, (_, idx) => {
+    const existing = goal.monthlyRecords[idx];
+    return {
+      month: idx + 1,
+      label: getFutureMonthLabel(idx),
+      boughtQty: Number(existing?.boughtQty) || 0,
+      pricePaidUSD: Number(existing?.pricePaidUSD) || 0,
+      fxRateBRL: Number(existing?.fxRateBRL) > 0 ? Number(existing.fxRateBRL) : defaultFx
+    };
+  });
+
+  return {
+    changed: true,
+    goal: {
+      ...goal,
+      monthsCount: nextMonthsCount,
+      monthlyRecords: migratedRecords
+    }
+  };
 }
 
 export function getDefaultGoals(fxRate: number = 5.85): CryptoGoal[] {
@@ -42,9 +77,9 @@ export function getDefaultGoals(fxRate: number = 5.85): CryptoGoal[] {
       color: '#8b5cf6',
       initialBalance: 200,
       targetAmount: 10000,
-      monthsCount: 12,
+      monthsCount: DEFAULT_PLAN_MONTHS,
       retirementTargetPriceUSD: 5.00,
-      monthlyRecords: Array.from({ length: 12 }, (_, idx) => ({
+      monthlyRecords: Array.from({ length: DEFAULT_PLAN_MONTHS }, (_, idx) => ({
         month: idx + 1,
         label: getFutureMonthLabel(idx),
         boughtQty: 0,
@@ -62,9 +97,9 @@ export function getDefaultGoals(fxRate: number = 5.85): CryptoGoal[] {
       color: '#f59e0b',
       initialBalance: 1.5,
       targetAmount: 15,
-      monthsCount: 12,
+      monthsCount: DEFAULT_PLAN_MONTHS,
       retirementTargetPriceUSD: 1800.00,
-      monthlyRecords: Array.from({ length: 12 }, (_, idx) => ({
+      monthlyRecords: Array.from({ length: DEFAULT_PLAN_MONTHS }, (_, idx) => ({
         month: idx + 1,
         label: getFutureMonthLabel(idx),
         boughtQty: 0,

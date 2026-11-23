@@ -3,7 +3,13 @@ import { ClipboardList, ArrowRightLeft, PieChart, Plus } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { AppState, ConverterState, CryptoGoal, CurrencyMode, MainTab, ToastMessage } from './types';
-import { CUSTOM_PALETTE, SUPPORTED_CRYPTOS, getDefaultGoals, getFutureMonthLabel } from './constants';
+import {
+  CUSTOM_PALETTE,
+  SUPPORTED_CRYPTOS,
+  getDefaultGoals,
+  getFutureMonthLabel,
+  migrateGoalStartToDecember
+} from './constants';
 import { loadState, normalizeLoadedState, saveState } from './utils/storage';
 import {
   calculateConverterResults,
@@ -186,38 +192,47 @@ export default function App() {
     const applyCloudHydration = (
       settings: CloudUserSettingsData,
       goalsResult: CloudGoalsSnapshotResult
-    ) => {
-      setState((prev) => {
-        const mergedPrices = { ...prev.pricesUSD, ...goalsResult.customPricesUSD };
-        const hasSelected = goalsResult.goals.some((g) => g.id === settings.selectedGoalId);
-        const selectedGoalId = hasSelected
-          ? settings.selectedGoalId
-          : goalsResult.goals[0]?.id || '';
-
-        const nextConverter: ConverterState = {
-          ...settings.converter,
-          targetGoalId: goalsResult.goals.some((g) => g.id === settings.converter.targetGoalId)
-            ? settings.converter.targetGoalId
-            : selectedGoalId
-        };
-
-        const next: AppState = {
-          ...prev,
-          currency: settings.currency,
-          selectedGoalId,
-          manualFxOverride: settings.manualFxOverride,
-          manualUsdtBrlRate: settings.manualUsdtBrlRate,
-          retirementGoalUSD: settings.retirementGoalUSD,
-          cycleMultiplier: settings.cycleMultiplier,
-          converter: nextConverter,
-          goals: goalsResult.goals,
-          pricesUSD: mergedPrices
-        };
-
-        saveState(next);
-        stateRef.current = next;
-        return next;
+    ): boolean => {
+      let migratedAny = false;
+      const defaultFx = settings.manualUsdtBrlRate > 0 ? settings.manualUsdtBrlRate : 5.85;
+      const migratedGoals = goalsResult.goals.map((g) => {
+        const res = migrateGoalStartToDecember(g, defaultFx);
+        if (res.changed) migratedAny = true;
+        return res.goal;
       });
+
+      const prev = stateRef.current;
+      const mergedPrices = { ...prev.pricesUSD, ...goalsResult.customPricesUSD };
+      const hasSelected = migratedGoals.some((g) => g.id === settings.selectedGoalId);
+      const selectedGoalId = hasSelected
+        ? settings.selectedGoalId
+        : migratedGoals[0]?.id || '';
+
+      const nextConverter: ConverterState = {
+        ...settings.converter,
+        targetGoalId: migratedGoals.some((g) => g.id === settings.converter.targetGoalId)
+          ? settings.converter.targetGoalId
+          : selectedGoalId
+      };
+
+      const next: AppState = {
+        ...prev,
+        currency: settings.currency,
+        selectedGoalId,
+        manualFxOverride: settings.manualFxOverride,
+        manualUsdtBrlRate: settings.manualUsdtBrlRate,
+        retirementGoalUSD: settings.retirementGoalUSD,
+        cycleMultiplier: settings.cycleMultiplier,
+        converter: nextConverter,
+        goals: migratedGoals,
+        pricesUSD: mergedPrices
+      };
+
+      saveState(next);
+      stateRef.current = next;
+      setState(next);
+
+      return migratedAny;
     };
 
     const unsubAuth = onAuthStateChanged(auth, (nextUser) => {
@@ -281,9 +296,38 @@ export default function App() {
         userDocExistsRef.current = true;
         cloudGoalIdsRef.current = latestGoalsResult.goalIds;
         cloudReadyRef.current = true;
+        let migratedAny = false;
         if (latestSettings) {
-          applyCloudHydration(latestSettings, latestGoalsResult);
+          migratedAny = applyCloudHydration(latestSettings, latestGoalsResult);
         }
+
+        if (migratedAny) {
+          // Atualiza os meses na nuvem para início em Dezembro (Dez/26 → Dez/27) uma única vez
+          isWritingCloudRef.current = true;
+          setCloudStatus('syncing');
+          try {
+            const nextIds = await uploadFullStateToCloud(
+              nextUser.uid,
+              stateRef.current,
+              true,
+              latestGoalsResult.goalIds
+            );
+            if (!sessionCancelled) {
+              cloudGoalIdsRef.current = nextIds;
+              setCloudStatus('saved');
+              showToast('Calendário atualizado para Dez/26 a Dez/27 e salvo no Firebase!', 'success');
+            }
+          } catch (err) {
+            if (!sessionCancelled) {
+              setCloudStatus('error');
+              notifyCloudError(err);
+            }
+          } finally {
+            isWritingCloudRef.current = false;
+          }
+          return;
+        }
+
         setCloudStatus('saved');
         showToast('Dados sincronizados com sua conta Firebase!', 'success');
       };
@@ -864,7 +908,7 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Restaurar Exemplo Padrão?',
-      message: 'Isso restaurará as metas iniciais em USDT (10.000 Polygon em 12 meses + BNB). Continuar?',
+      message: 'Isso restaurará as metas iniciais em USDT (10.000 Polygon de Dez/26 a Dez/27 + BNB). Continuar?',
       onConfirm: () => {
         setConfirmState((prev) => ({ ...prev, isOpen: false }));
         updateAndPersist((prev) => {

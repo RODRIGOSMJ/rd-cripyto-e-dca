@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { CryptoGoal, CurrencyMode } from '../types';
-import { SUPPORTED_CRYPTOS } from '../constants';
+import { DEFAULT_PLAN_MONTHS, SUPPORTED_CRYPTOS, getFutureMonthLabel } from '../constants';
 import { convertFromUSD, convertToUSD, formatCryptoQty, formatMoney } from '../utils/calculations';
 
 export interface GoalFormPayload {
@@ -48,7 +48,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
   const [customPrice, setCustomPrice] = useState('1');
   const [initialBalance, setInitialBalance] = useState('0');
   const [targetAmount, setTargetAmount] = useState('100');
-  const [monthsCount, setMonthsCount] = useState('12');
+  const [monthsCount, setMonthsCount] = useState(String(DEFAULT_PLAN_MONTHS));
   const [retirementPrice, setRetirementPrice] = useState('30');
 
   const initializedSessionRef = useRef<string | null>(null);
@@ -99,7 +99,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
       setCustomPrice('1');
       setInitialBalance('0');
       setTargetAmount('100');
-      setMonthsCount('12');
+      setMonthsCount(String(DEFAULT_PLAN_MONTHS));
       const pUSD = Number(prices[sym]) || 10;
       setRetirementPrice(String(Number(convertFromUSD(pUSD * 3, curr, fx).toFixed(2))));
     }
@@ -251,7 +251,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
                 required
                 value={monthsCount}
                 onChange={(e) => setMonthsCount(e.target.value)}
-                placeholder="Ex: 12"
+                placeholder="Ex: 13"
                 className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -275,8 +275,15 @@ export const GoalModal: React.FC<GoalModalProps> = ({
           <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-xs text-slate-300 space-y-1 tabular-nums">
             <div className="font-bold text-emerald-300">Resumo Automático do Plano:</div>
             <div>
-              · Você precisa comprar <strong>{formatCryptoQty(toBuy, previewSym)}</strong> em{' '}
-              <strong>{monthsNum} meses</strong> = <strong>{formatCryptoQty(perMonth, previewSym)}/mês</strong>.
+              · Período:{' '}
+              <strong>
+                {getFutureMonthLabel(0)} → {getFutureMonthLabel(Math.max(0, monthsNum - 1))}
+              </strong>{' '}
+              ({monthsNum} {monthsNum === 1 ? 'mês' : 'meses'}).
+            </div>
+            <div>
+              · Você precisa comprar <strong>{formatCryptoQty(toBuy, previewSym)}</strong> ={' '}
+              <strong>{formatCryptoQty(perMonth, previewSym)}/mês</strong>.
             </div>
             {liveUSD > 0 && (
               <div>

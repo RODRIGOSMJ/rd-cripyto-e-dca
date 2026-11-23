@@ -3,9 +3,12 @@ import { Pencil, Check } from 'lucide-react';
 import { AppState } from '../types';
 import {
   calculateGoalMetrics,
+  calculateMonthlyPortfolioBudget,
   convertFromUSD,
   formatMoney,
-  getEffectiveUsdtBrlRate
+  formatUSDT,
+  getEffectiveUsdtBrlRate,
+  getNextActiveMonthIndex
 } from '../utils/calculations';
 import { DualMoney } from './DualMoney';
 import { NumericInput } from './NumericInput';
@@ -43,6 +46,14 @@ export const GlobalKPIs: React.FC<GlobalKPIsProps> = ({ state, onUpdateRetiremen
   const totalPnlUSD = totalDcaValueUSD - totalInvestedUSD;
   const totalPnlPct = totalInvestedUSD > 0 ? (totalPnlUSD / totalInvestedUSD) * 100 : 0;
   const pnlSign = totalPnlUSD >= 0 ? '+' : '';
+
+  const nextMonthIdx = getNextActiveMonthIndex(state.goals, state.pricesUSD, fxRate);
+  const activeMonthBudget = calculateMonthlyPortfolioBudget(
+    state.goals,
+    state.pricesUSD,
+    fxRate,
+    nextMonthIdx
+  );
 
   const retirementGoalUSD = Math.max(0, Number(state.retirementGoalUSD) || 0);
   const ownedPct =
@@ -83,8 +94,12 @@ export const GlobalKPIs: React.FC<GlobalKPIsProps> = ({ state, onUpdateRetiremen
             subClassName="text-[11px] font-mono font-normal text-slate-400"
           />
         </div>
-        <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums truncate">
-          Falta investir: {formatMoney(totalRemainingUSD, state.currency, fxRate, 2)}
+        <div className="text-[11px] text-sky-400 font-semibold mt-0.5 tabular-nums truncate">
+          Mês {activeMonthBudget.monthNumber} (todas):{' '}
+          <span className="font-mono">{formatUSDT(activeMonthBudget.totalPlannedUSD, 2)}</span>
+        </div>
+        <div className="text-[10px] text-slate-500 mt-0.5 tabular-nums truncate">
+          Falta investir total: {formatMoney(totalRemainingUSD, state.currency, fxRate, 2)}
         </div>
       </div>
 

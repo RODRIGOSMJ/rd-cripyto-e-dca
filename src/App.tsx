@@ -747,6 +747,19 @@ export default function App() {
     }));
   };
 
+  const handleSendMonthlyUsdToConverter = (amountUSD: number) => {
+    const cleanVal = Number(Math.max(0, amountUSD).toFixed(2));
+    updateAndPersist((prev) => ({
+      ...prev,
+      mainTab: 'CONVERTER',
+      converter: {
+        ...prev.converter,
+        direction: 'USDT_TO_BRL',
+        amountUSDT: cleanVal
+      }
+    }));
+  };
+
   const handleToggleManualFx = (checked: boolean) => {
     updateAndPersist((prev) => ({
       ...prev,
@@ -968,6 +981,7 @@ export default function App() {
               onQuickCompleteMonth={handleQuickCompleteMonth}
               onAutoFillNextEmptyMonth={handleAutoFillNextEmptyMonth}
               onGoToConverter={() => handleSelectMainTab('CONVERTER')}
+              onSendMonthlyUsdToConverter={handleSendMonthlyUsdToConverter}
             />
           )}
 

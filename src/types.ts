@@ -126,6 +126,34 @@ export interface ConverterResults {
   purchasableCryptoQty: number;
 }
 
+export interface MonthlyPortfolioBudgetItem {
+  goalId: string;
+  symbol: string;
+  name: string;
+  color: string;
+  currentPriceUSD: number;
+  plannedQty: number;
+  boughtQty: number;
+  remainingQty: number;
+  plannedCostUSD: number;
+  remainingCostUSD: number;
+  spentUSD: number;
+  isCompleted: boolean;
+}
+
+export interface MonthlyPortfolioBudget {
+  monthIndex: number;
+  monthNumber: number;
+  monthLabel: string;
+  maxMonths: number;
+  activeGoalsCount: number;
+  completedGoalsCount: number;
+  totalPlannedUSD: number;
+  totalRemainingToBuyUSD: number;
+  totalAlreadySpentUSD: number;
+  items: MonthlyPortfolioBudgetItem[];
+}
+
 export interface ToastMessage {
   id: string;
   message: string;

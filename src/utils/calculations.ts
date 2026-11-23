@@ -5,6 +5,8 @@ import {
   CryptoGoal,
   CurrencyMode,
   GoalMetrics,
+  MonthlyPortfolioBudget,
+  MonthlyPortfolioBudgetItem,
   ScheduleRow
 } from '../types';
 import { getFutureMonthLabel } from '../constants';
@@ -268,5 +270,100 @@ export function calculateConverterResults(
     effectiveFxRate,
     targetPriceUSD,
     purchasableCryptoQty
+  };
+}
+
+export function getMaxGoalMonths(goals: CryptoGoal[]): number {
+  if (!goals.length) return 1;
+  return goals.reduce((max, g) => Math.max(max, Math.max(1, parseInt(String(g.monthsCount), 10) || 12)), 1);
+}
+
+export function getNextActiveMonthIndex(
+  goals: CryptoGoal[],
+  pricesUSD: Record<string, number>,
+  currentFx: number
+): number {
+  const maxMonths = getMaxGoalMonths(goals);
+  const metricsByGoal = goals.map((g) => calculateGoalMetrics(g, pricesUSD, currentFx));
+
+  for (let mIdx = 0; mIdx < maxMonths; mIdx++) {
+    const hasPending = metricsByGoal.some((gm) => {
+      const row = gm.schedule[mIdx];
+      return row && row.plannedQty > 0 && row.boughtQty < row.plannedQty * 0.9999;
+    });
+    if (hasPending) return mIdx;
+  }
+
+  return 0;
+}
+
+export function calculateMonthlyPortfolioBudget(
+  goals: CryptoGoal[],
+  pricesUSD: Record<string, number>,
+  currentFx: number,
+  monthIndex: number
+): MonthlyPortfolioBudget {
+  const maxMonths = getMaxGoalMonths(goals);
+  const safeIndex = Math.min(maxMonths - 1, Math.max(0, Math.floor(monthIndex) || 0));
+
+  const items: MonthlyPortfolioBudgetItem[] = [];
+  let totalPlannedUSD = 0;
+  let totalRemainingToBuyUSD = 0;
+  let totalAlreadySpentUSD = 0;
+  let completedGoalsCount = 0;
+  let monthLabel = getFutureMonthLabel(safeIndex);
+
+  for (const goal of goals) {
+    const m = calculateGoalMetrics(goal, pricesUSD, currentFx);
+    const row = m.schedule[safeIndex];
+    if (!row) continue;
+
+    if (items.length === 0 && row.label) {
+      monthLabel = row.label;
+    }
+
+    const plannedQty = Math.max(0, row.plannedQty);
+    const boughtQty = Math.max(0, row.boughtQty);
+    const remainingQty = Math.max(0, plannedQty - boughtQty);
+    const plannedCostUSD = plannedQty * m.currentPriceUSD;
+    const remainingCostUSD = remainingQty * m.currentPriceUSD;
+    const spentUSD = row.monthCostUSD;
+    const isCompleted = plannedQty === 0 || boughtQty >= plannedQty * 0.9999;
+
+    if (isCompleted) {
+      completedGoalsCount++;
+    }
+
+    totalPlannedUSD += plannedCostUSD;
+    totalRemainingToBuyUSD += remainingCostUSD;
+    totalAlreadySpentUSD += spentUSD;
+
+    items.push({
+      goalId: goal.id,
+      symbol: goal.symbol,
+      name: goal.name,
+      color: goal.color || '#10b981',
+      currentPriceUSD: m.currentPriceUSD,
+      plannedQty,
+      boughtQty,
+      remainingQty,
+      plannedCostUSD,
+      remainingCostUSD,
+      spentUSD,
+      isCompleted
+    });
+  }
+
+  return {
+    monthIndex: safeIndex,
+    monthNumber: safeIndex + 1,
+    monthLabel,
+    maxMonths,
+    activeGoalsCount: items.length,
+    completedGoalsCount,
+    totalPlannedUSD,
+    totalRemainingToBuyUSD,
+    totalAlreadySpentUSD,
+    items
   };
 }

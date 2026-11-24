@@ -13,6 +13,82 @@ import {
 } from '../types';
 import { getFutureMonthLabel } from '../constants';
 
+export function parseFlexibleNumber(raw: string | number | null | undefined): number {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : 0;
+  }
+  const cleaned = String(raw ?? '')
+    .trim()
+    .replace(/R\$/gi, '')
+    .replace(/USDT/gi, '')
+    .replace(/\$/g, '')
+    .replace(/\s+/g, '');
+
+  if (!cleaned) return 0;
+
+  const hasComma = cleaned.includes(',');
+  const hasDot = cleaned.includes('.');
+
+  let normalized = cleaned;
+  if (hasComma && hasDot) {
+    // O separador que aparece por último é o decimal; o outro é separador de milhar
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    if (lastComma > lastDot) {
+      normalized = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalized = cleaned.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    const parts = cleaned.split(',');
+    if (parts.length > 2) {
+      // Múltiplas vírgulas como separador de milhar (ex: 1,000,000)
+      normalized = cleaned.replace(/,/g, '');
+    } else {
+      normalized = cleaned.replace(',', '.');
+    }
+  } else if (hasDot) {
+    const parts = cleaned.split('.');
+    if (parts.length > 2) {
+      // Múltiplos pontos como separador de milhar (ex: 1.000.000)
+      normalized = cleaned.replace(/\./g, '');
+    }
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function formatEditableNumber(val: number, maxDecimals?: number): string {
+  const num = Number(val);
+  if (!Number.isFinite(num) || num <= 0) return '';
+  const abs = Math.abs(num);
+  const decimals =
+    maxDecimals !== undefined
+      ? maxDecimals
+      : abs < 0.001
+        ? 8
+        : abs < 1
+          ? 6
+          : abs < 100
+            ? 4
+            : 2;
+  const fixed = num.toFixed(decimals);
+  // Remove zeros finais desnecessários sem gerar notação científica
+  return fixed.includes('.') ? fixed.replace(/\.?0+$/, '') : fixed;
+}
+
+export function roundSmart(val: number): number {
+  const num = Number(val);
+  if (!Number.isFinite(num)) return 0;
+  const abs = Math.abs(num);
+  if (abs === 0) return 0;
+  if (abs < 0.01) return Number(num.toFixed(8));
+  if (abs < 1) return Number(num.toFixed(6));
+  if (abs < 100) return Number(num.toFixed(4));
+  return Number(num.toFixed(2));
+}
+
 export function summarizeMonthlyEntries(
   entries: MonthlyPurchaseEntry[],
   fallbackFx: number
@@ -38,7 +114,7 @@ export function summarizeMonthlyEntries(
     totalCostBRL += costUSD * fx;
   }
 
-  const boughtQty = Number(totalQty.toFixed(6));
+  const boughtQty = Number(totalQty.toFixed(8));
   const pricePaidUSD = totalQty > 0 ? totalCostUSD / totalQty : 0;
   const fxRateBRL = totalCostUSD > 0 ? totalCostBRL / totalCostUSD : fallbackFx;
 
@@ -112,36 +188,52 @@ export function convertToUSD(amountDisplay: number, currency: CurrencyMode, fxRa
 
 export function formatUSDT(amountUSDT: number, forceDecimals: number | null = null): string {
   const val = Number(amountUSDT) || 0;
-  let decimals = 2;
+  const abs = Math.abs(val);
+  let minDecimals = 2;
+  let maxDecimals = 2;
   if (forceDecimals !== null) {
-    decimals = forceDecimals;
-  } else if (Math.abs(val) > 0 && Math.abs(val) < 1) {
-    decimals = 4;
-  } else if (Math.abs(val) >= 1 && Math.abs(val) < 10) {
-    decimals = 3;
+    minDecimals = forceDecimals;
+    maxDecimals = forceDecimals;
+  } else if (abs > 0 && abs < 0.01) {
+    minDecimals = 4;
+    maxDecimals = 8;
+  } else if (abs >= 0.01 && abs < 1) {
+    minDecimals = 4;
+    maxDecimals = 6;
+  } else if (abs >= 1 && abs < 10) {
+    minDecimals = 3;
+    maxDecimals = 4;
   }
   const formatted = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals
   }).format(val);
   return `$${formatted} USDT`;
 }
 
 export function formatBRL(amountBRL: number, forceDecimals: number | null = null): string {
   const val = Number(amountBRL) || 0;
-  let decimals = 2;
+  const abs = Math.abs(val);
+  let minDecimals = 2;
+  let maxDecimals = 2;
   if (forceDecimals !== null) {
-    decimals = forceDecimals;
-  } else if (Math.abs(val) > 0 && Math.abs(val) < 1) {
-    decimals = 4;
-  } else if (Math.abs(val) >= 1 && Math.abs(val) < 10) {
-    decimals = 3;
+    minDecimals = forceDecimals;
+    maxDecimals = forceDecimals;
+  } else if (abs > 0 && abs < 0.01) {
+    minDecimals = 4;
+    maxDecimals = 8;
+  } else if (abs >= 0.01 && abs < 1) {
+    minDecimals = 4;
+    maxDecimals = 6;
+  } else if (abs >= 1 && abs < 10) {
+    minDecimals = 3;
+    maxDecimals = 4;
   }
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals
   }).format(val);
 }
 
@@ -160,10 +252,33 @@ export function formatMoney(
 
 export function formatCryptoQty(qty: number, symbol = ''): string {
   const num = Number(qty) || 0;
-  const decimals = num % 1 === 0 ? 0 : Math.abs(num) < 10 ? 4 : 2;
+  const abs = Math.abs(num);
+  let minDecimals = 0;
+  let maxDecimals = 2;
+
+  if (abs === 0) {
+    minDecimals = 0;
+    maxDecimals = 0;
+  } else if (Math.abs(num - Math.round(num)) < 1e-8) {
+    minDecimals = 0;
+    maxDecimals = 0;
+  } else if (abs < 0.01) {
+    minDecimals = 2;
+    maxDecimals = 8;
+  } else if (abs < 1) {
+    minDecimals = 2;
+    maxDecimals = 6;
+  } else if (abs < 10) {
+    minDecimals = 2;
+    maxDecimals = 4;
+  } else {
+    minDecimals = 0;
+    maxDecimals = 2;
+  }
+
   const formatted = new Intl.NumberFormat('pt-BR', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals
   }).format(num);
   return symbol ? `${formatted} ${symbol}` : formatted;
 }
@@ -175,7 +290,7 @@ export function calculateGoalMetrics(
 ): GoalMetrics {
   const currentPriceUSD = Number(pricesUSD[goal.symbol]) || 0;
   const initialBalance = Math.max(0, Number(goal.initialBalance) || 0);
-  const targetAmount = Math.max(0.000001, Number(goal.targetAmount) || 0);
+  const targetAmount = Math.max(0.00000001, Number(goal.targetAmount) || 0);
   const monthsCount = Math.max(1, parseInt(String(goal.monthsCount), 10) || 12);
 
   const totalToBuy = Math.max(0, targetAmount - initialBalance);
@@ -222,9 +337,9 @@ export function calculateGoalMetrics(
       monthCostBRL = monthCostUSD * fxRateBRL;
     }
 
-    const remainingMonthQty = Math.max(0, baseMonthlyTargetQty - bought);
     const isCompleted =
       baseMonthlyTargetQty > 0 ? bought >= baseMonthlyTargetQty * 0.9999 : bought > 0;
+    const remainingMonthQty = isCompleted ? 0 : Math.max(0, baseMonthlyTargetQty - bought);
     const isPartial = bought > 0 && !isCompleted;
 
     if (isCompleted) {
@@ -397,7 +512,7 @@ export function getNextActiveMonthIndex(
   for (let mIdx = 0; mIdx < maxMonths; mIdx++) {
     const hasPending = metricsByGoal.some((gm) => {
       const row = gm.schedule[mIdx];
-      return row && row.plannedQty > 0 && row.boughtQty < row.plannedQty * 0.9999;
+      return row && row.plannedQty > 0 && !row.isCompleted;
     });
     if (hasPending) return mIdx;
   }
@@ -432,11 +547,11 @@ export function calculateMonthlyPortfolioBudget(
 
     const plannedQty = Math.max(0, row.plannedQty);
     const boughtQty = Math.max(0, row.boughtQty);
-    const remainingQty = Math.max(0, plannedQty - boughtQty);
+    const isCompleted = row.isCompleted;
+    const remainingQty = isCompleted ? 0 : Math.max(0, row.remainingMonthQty);
     const plannedCostUSD = plannedQty * m.currentPriceUSD;
     const remainingCostUSD = remainingQty * m.currentPriceUSD;
     const spentUSD = row.monthCostUSD;
-    const isCompleted = plannedQty === 0 || boughtQty >= plannedQty * 0.9999;
 
     if (isCompleted) {
       completedGoalsCount++;

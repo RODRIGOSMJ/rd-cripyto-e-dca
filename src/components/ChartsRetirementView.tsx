@@ -9,7 +9,8 @@ import {
   formatMoney,
   formatUSDT,
   getEffectiveUsdtBrlRate,
-  getMultiplier
+  getMultiplier,
+  roundSmart
 } from '../utils/calculations';
 import { NumericInput } from './NumericInput';
 import { CryptoLogo } from './CryptoLogo';
@@ -111,18 +112,18 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
   const goalDisplayVal = Number(convertFromUSD(retirementGoalUSD, state.currency, fxRate).toFixed(2));
 
   const labels = m.schedule.map((s) => `M${s.month}`);
-  const liveDisplayPrice = Number((m.currentPriceUSD * multCurr).toFixed(4));
+  const liveDisplayPrice = roundSmart(m.currentPriceUSD * multCurr);
   const avgPricePoints = m.schedule
     .flatMap((s) => [
-      s.cumAvgPriceUSD > 0 ? Number((s.cumAvgPriceUSD * multCurr).toFixed(4)) : null,
-      s.pricePaidUSD > 0 ? Number((s.pricePaidUSD * multCurr).toFixed(4)) : null
+      s.cumAvgPriceUSD > 0 ? roundSmart(s.cumAvgPriceUSD * multCurr) : null,
+      s.pricePaidUSD > 0 ? roundSmart(s.pricePaidUSD * multCurr) : null
     ])
     .filter((v): v is number => v !== null && v > 0);
   const allPricePoints = liveDisplayPrice > 0 ? [...avgPricePoints, liveDisplayPrice] : avgPricePoints;
   const minPricePoint = allPricePoints.length > 0 ? Math.min(...allPricePoints) : 0;
   const maxPricePoint = allPricePoints.length > 0 ? Math.max(...allPricePoints) : 1;
-  const ySuggestedMin = minPricePoint > 0 ? Number((minPricePoint * 0.85).toFixed(4)) : 0;
-  const ySuggestedMax = maxPricePoint > 0 ? Number((maxPricePoint * 1.15).toFixed(4)) : 1;
+  const ySuggestedMin = minPricePoint > 0 ? roundSmart(minPricePoint * 0.85) : 0;
+  const ySuggestedMax = maxPricePoint > 0 ? roundSmart(maxPricePoint * 1.15) : 1;
 
   const avgPriceConfig: ChartConfiguration<'line'> = {
     type: 'line',
@@ -131,7 +132,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
       datasets: [
         {
           label: 'Preço Médio Acumulado',
-          data: m.schedule.map((s) => (s.cumAvgPriceUSD > 0 ? Number((s.cumAvgPriceUSD * multCurr).toFixed(4)) : null)),
+          data: m.schedule.map((s) => (s.cumAvgPriceUSD > 0 ? roundSmart(s.cumAvgPriceUSD * multCurr) : null)),
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.15)',
           borderWidth: 2.5,
@@ -142,7 +143,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
         },
         {
           label: 'Preço Pago Mês',
-          data: m.schedule.map((s) => (s.pricePaidUSD > 0 ? Number((s.pricePaidUSD * multCurr).toFixed(4)) : null)),
+          data: m.schedule.map((s) => (s.pricePaidUSD > 0 ? roundSmart(s.pricePaidUSD * multCurr) : null)),
           borderColor: '#38bdf8',
           borderDash: [4, 4],
           borderWidth: 2,
@@ -184,7 +185,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
         {
           type: 'bar',
           label: `Acumulado (${goal.symbol})`,
-          data: m.schedule.map((s) => Number(s.cumCoins.toFixed(2))),
+          data: m.schedule.map((s) => roundSmart(s.cumCoins)),
           backgroundColor: goal.color || '#8b5cf6',
           borderRadius: 5,
           order: 2
@@ -192,7 +193,7 @@ export const ChartsRetirementView: React.FC<ChartsRetirementViewProps> = ({
         {
           type: 'line',
           label: 'Meta Planejada',
-          data: m.schedule.map((s) => Number(s.plannedCumQty.toFixed(2))),
+          data: m.schedule.map((s) => roundSmart(s.plannedCumQty)),
           borderColor: '#10b981',
           borderWidth: 2,
           pointRadius: 2.5,

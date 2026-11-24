@@ -47,14 +47,14 @@ export function downloadCSVReport(state: AppState): boolean {
           g.symbol,
           s.month,
           s.label,
-          s.plannedQty.toFixed(4),
-          s.boughtQty.toFixed(4),
-          s.pricePaidUSD.toFixed(4),
+          s.plannedQty.toFixed(8),
+          s.boughtQty.toFixed(8),
+          s.pricePaidUSD.toFixed(8),
           s.fxRateBRL.toFixed(4),
           s.monthCostUSD.toFixed(2),
           s.monthCostBRL.toFixed(2),
-          s.cumAvgPriceUSD.toFixed(4),
-          s.cumCoins.toFixed(4)
+          s.cumAvgPriceUSD.toFixed(8),
+          s.cumCoins.toFixed(8)
         ]);
       }
     }

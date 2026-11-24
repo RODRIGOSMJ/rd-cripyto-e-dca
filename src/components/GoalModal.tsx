@@ -2,7 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { CryptoGoal, CurrencyMode } from '../types';
 import { DEFAULT_PLAN_MONTHS, SUPPORTED_CRYPTOS, getFutureMonthLabel } from '../constants';
-import { convertFromUSD, convertToUSD, formatCryptoQty, formatMoney } from '../utils/calculations';
+import {
+  convertFromUSD,
+  convertToUSD,
+  formatCryptoQty,
+  formatEditableNumber,
+  formatMoney,
+  parseFlexibleNumber
+} from '../utils/calculations';
 import { CryptoLogo } from './CryptoLogo';
 
 export interface GoalFormPayload {
@@ -26,11 +33,6 @@ interface GoalModalProps {
   pricesUSD: Record<string, number>;
   onClose: () => void;
   onSave: (payload: GoalFormPayload) => void;
-}
-
-function parseDecimalInput(raw: string): number {
-  const parsed = parseFloat(raw.replace(',', '.'));
-  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export const GoalModal: React.FC<GoalModalProps> = ({
@@ -84,13 +86,13 @@ export const GoalModal: React.FC<GoalModalProps> = ({
         setSelectedAsset('CUSTOM');
         setCustomSymbol(goalToEdit.symbol);
         setCustomName(goalToEdit.name);
-        setCustomPrice(String(prices[goalToEdit.symbol] || 1));
+        setCustomPrice(formatEditableNumber(prices[goalToEdit.symbol] || 1, 8));
       }
-      setInitialBalance(String(goalToEdit.initialBalance));
-      setTargetAmount(String(goalToEdit.targetAmount));
+      setInitialBalance(formatEditableNumber(goalToEdit.initialBalance, 8) || '0');
+      setTargetAmount(formatEditableNumber(goalToEdit.targetAmount, 8) || '100');
       setMonthsCount(String(goalToEdit.monthsCount));
       setRetirementPrice(
-        String(Number(convertFromUSD(goalToEdit.retirementTargetPriceUSD, curr, fx).toFixed(2)))
+        formatEditableNumber(convertFromUSD(goalToEdit.retirementTargetPriceUSD, curr, fx), 8) || '0'
       );
     } else {
       const sym = initialSym || 'SOL';
@@ -102,7 +104,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
       setTargetAmount('100');
       setMonthsCount(String(DEFAULT_PLAN_MONTHS));
       const pUSD = Number(prices[sym]) || 10;
-      setRetirementPrice(String(Number(convertFromUSD(pUSD * 3, curr, fx).toFixed(2))));
+      setRetirementPrice(formatEditableNumber(convertFromUSD(pUSD * 3, curr, fx), 8) || '0');
     }
   }, [isOpen, editingGoal?.id, preselectSymbol]);
 
@@ -112,22 +114,22 @@ export const GoalModal: React.FC<GoalModalProps> = ({
     setSelectedAsset(val);
     if (val !== 'CUSTOM') {
       const pUSD = Number(pricesUSD[val]) || 10;
-      setRetirementPrice(String(Number(convertFromUSD(pUSD * 3, currency, fxRate).toFixed(2))));
+      setRetirementPrice(formatEditableNumber(convertFromUSD(pUSD * 3, currency, fxRate), 8) || '0');
     }
   };
 
   const currLabel = currency === 'BRL' ? 'R$' : 'USDT';
-  const initBalNum = Math.max(0, parseDecimalInput(initialBalance));
-  const targetNum = Math.max(0, parseDecimalInput(targetAmount));
+  const initBalNum = Math.max(0, parseFlexibleNumber(initialBalance) ?? 0);
+  const targetNum = Math.max(0, parseFlexibleNumber(targetAmount) ?? 0);
   const monthsNum = Math.max(1, parseInt(monthsCount, 10) || 12);
-  const retPriceDisplay = Math.max(0, parseDecimalInput(retirementPrice));
+  const retPriceDisplay = Math.max(0, parseFlexibleNumber(retirementPrice) ?? 0);
 
   const previewSym = selectedAsset === 'CUSTOM' ? customSymbol.trim().toUpperCase() || 'CRIPTO' : selectedAsset;
   const toBuy = Math.max(0, targetNum - initBalNum);
   const perMonth = toBuy / monthsNum;
   const liveUSD =
     selectedAsset === 'CUSTOM'
-      ? parseDecimalInput(customPrice) || Number(pricesUSD[previewSym]) || 0
+      ? (parseFlexibleNumber(customPrice) ?? 0) || Number(pricesUSD[previewSym]) || 0
       : Number(pricesUSD[previewSym]) || 0;
   const monthlyCostUSD = perMonth * liveUSD;
   const retTotalUSD = targetNum * convertToUSD(retPriceDisplay, currency, fxRate);
@@ -139,7 +141,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
       selectedAsset,
       customSymbol: customSymbol.trim().toUpperCase(),
       customName: customName.trim(),
-      customPriceUSD: parseDecimalInput(customPrice) || 1,
+      customPriceUSD: (parseFlexibleNumber(customPrice) ?? 0) || 1,
       initialBalance: initBalNum,
       targetAmount: Math.max(0.000001, targetNum || 100),
       monthsCount: Math.min(120, Math.max(1, monthsNum)),
@@ -207,12 +209,11 @@ export const GoalModal: React.FC<GoalModalProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">Preço Manual (USDT)</label>
                 <input
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={customPrice}
                   onChange={(e) => setCustomPrice(e.target.value)}
-                  placeholder="0.85"
+                  placeholder="0,85"
                   className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -223,26 +224,24 @@ export const GoalModal: React.FC<GoalModalProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">Saldo que Já Tenho</label>
               <input
-                type="number"
-                step="any"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 required
                 value={initialBalance}
                 onChange={(e) => setInitialBalance(e.target.value)}
-                placeholder="Ex: 200"
+                placeholder="Ex: 200 ou 0,05"
                 className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">Meta Final de Moedas</label>
               <input
-                type="number"
-                step="any"
-                min="0.000001"
+                type="text"
+                inputMode="decimal"
                 required
                 value={targetAmount}
                 onChange={(e) => setTargetAmount(e.target.value)}
-                placeholder="Ex: 10000"
+                placeholder="Ex: 10000 ou 0,5"
                 className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>
@@ -267,13 +266,12 @@ export const GoalModal: React.FC<GoalModalProps> = ({
                 Preço-Alvo Aposentadoria ({currLabel})
               </label>
               <input
-                type="number"
-                step="any"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 required
                 value={retirementPrice}
                 onChange={(e) => setRetirementPrice(e.target.value)}
-                placeholder="Ex: 5.00"
+                placeholder="Ex: 5,00"
                 className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>

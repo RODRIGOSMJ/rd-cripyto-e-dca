@@ -21,12 +21,14 @@ import {
   convertFromUSD,
   formatBRL,
   formatCryptoQty,
+  formatEditableNumber,
   formatMoney,
   formatUSDT,
   getEffectiveUsdtBrlRate,
   getMaxGoalMonths,
   getMultiplier,
-  getNextActiveMonthIndex
+  getNextActiveMonthIndex,
+  roundSmart
 } from '../utils/calculations';
 import { DualMoney } from './DualMoney';
 import { NumericInput } from './NumericInput';
@@ -102,6 +104,11 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
   const goal = state.goals.find((g) => g.id === state.selectedGoalId) || state.goals[0];
   const m = goal ? calculateGoalMetrics(goal, state.pricesUSD, fxRate) : null;
 
+  // Fecha o modal parcial automaticamente ao trocar de criptomoeda selecionada
+  useEffect(() => {
+    setPartialModalMonthIndex(null);
+  }, [goal?.id]);
+
   // Atualiza gráfico DCA ao vivo sem flicker
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -172,7 +179,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
             {
               type: 'bar',
               label: `Saldo Acumulado (${goal.symbol})`,
-              data: m.schedule.map((s) => Number(s.cumCoins.toFixed(2))),
+              data: m.schedule.map((s) => roundSmart(s.cumCoins)),
               backgroundColor: goal.color || '#8b5cf6',
               borderRadius: 5,
               order: 2
@@ -180,7 +187,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
             {
               type: 'line',
               label: 'Meta Planejada',
-              data: m.schedule.map((s) => Number(s.plannedCumQty.toFixed(2))),
+              data: m.schedule.map((s) => roundSmart(s.plannedCumQty)),
               borderColor: '#10b981',
               borderWidth: 2,
               pointRadius: 2,
@@ -215,7 +222,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
             {
               label: `Preço Médio (${currSymbol})`,
               data: m.schedule.map((s) =>
-                s.cumAvgPriceUSD > 0 ? Number((s.cumAvgPriceUSD * mult).toFixed(4)) : null
+                s.cumAvgPriceUSD > 0 ? roundSmart(s.cumAvgPriceUSD * mult) : null
               ),
               borderColor: '#10b981',
               backgroundColor: 'rgba(16, 185, 129, 0.14)',
@@ -226,7 +233,7 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
             },
             {
               label: 'Cotação Atual',
-              data: m.schedule.map(() => Number((m.currentPriceUSD * mult).toFixed(4))),
+              data: m.schedule.map(() => roundSmart(m.currentPriceUSD * mult)),
               borderColor: '#f59e0b',
               borderDash: [5, 5],
               borderWidth: 1.5,
@@ -861,42 +868,63 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Linha 2: Inputs Inline Qtd @ Preço */}
-                      <div className="flex items-center gap-1">
-                        <NumericInput
-                          value={row.boughtQty}
-                          onValueChange={(val) =>
-                            onUpdateMonthlyRecordNumber(goal.id, row.index, 'boughtQty', val)
-                          }
-                          placeholder={row.plannedQty.toFixed(2)}
-                          decimalsOnBlur={4}
-                          ariaLabel={`Quantidade comprada no mês ${row.month}`}
-                          className={`min-w-0 flex-1 h-6 rounded bg-slate-950 border ${
+                      {/* Linha 2: Inputs Inline Qtd @ Preço (ou resumo clicável quando houver múltiplos lotes parciais) */}
+                      {row.entriesCount > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => setPartialModalMonthIndex(row.index)}
+                          title={`Mês com ${row.entriesCount} compras parciais — clique para ver o histórico, adicionar ou remover lotes`}
+                          className={`w-full h-6 rounded bg-slate-950 border px-1.5 flex items-center justify-between gap-1 text-[11px] font-mono transition-colors ${
                             row.isCompleted
-                              ? 'border-emerald-500/40 text-emerald-100'
-                              : row.isPartial
-                                ? 'border-amber-500/45 text-amber-100'
+                              ? 'border-emerald-500/40 text-emerald-100 hover:border-emerald-400'
+                              : 'border-amber-500/45 text-amber-100 hover:border-amber-400'
+                          }`}
+                        >
+                          <span className="truncate font-bold">{formatCryptoQty(row.boughtQty)}</span>
+                          <span className="text-[10px] text-slate-500 shrink-0">@</span>
+                          <span className="truncate text-slate-300">
+                            {formatEditableNumber(priceDisplayVal) || '0'}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <NumericInput
+                            value={row.boughtQty}
+                            onValueChange={(val) =>
+                              onUpdateMonthlyRecordNumber(goal.id, row.index, 'boughtQty', val)
+                            }
+                            placeholder={formatEditableNumber(row.plannedQty) || '0'}
+                            decimalsOnBlur={8}
+                            ariaLabel={`Quantidade comprada no mês ${row.month}`}
+                            className={`min-w-0 flex-1 h-6 rounded bg-slate-950 border ${
+                              row.isCompleted
+                                ? 'border-emerald-500/40 text-emerald-100'
+                                : row.isPartial
+                                  ? 'border-amber-500/45 text-amber-100'
+                                  : 'border-slate-800 text-slate-200'
+                            } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
+                          />
+                          <span className="text-[10px] text-slate-600 shrink-0">@</span>
+                          <NumericInput
+                            value={priceDisplayVal}
+                            onValueChange={(val) =>
+                              onUpdateMonthlyRecordNumber(goal.id, row.index, 'pricePaid', val)
+                            }
+                            placeholder={
+                              formatEditableNumber(convertFromUSD(m.currentPriceUSD, state.currency, fxRate)) || '0'
+                            }
+                            decimalsOnBlur={8}
+                            ariaLabel={`Preço pago no mês ${row.month}`}
+                            className={`min-w-0 flex-1 h-6 rounded bg-slate-950 border ${
+                              row.pricePaidUSD > 0
+                                ? row.isPartial
+                                  ? 'border-amber-500/45 text-amber-100'
+                                  : 'border-emerald-500/40 text-emerald-100'
                                 : 'border-slate-800 text-slate-200'
-                          } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
-                        />
-                        <span className="text-[10px] text-slate-600 shrink-0">@</span>
-                        <NumericInput
-                          value={priceDisplayVal}
-                          onValueChange={(val) =>
-                            onUpdateMonthlyRecordNumber(goal.id, row.index, 'pricePaid', val)
-                          }
-                          placeholder={convertFromUSD(m.currentPriceUSD, state.currency, fxRate).toFixed(2)}
-                          decimalsOnBlur={4}
-                          ariaLabel={`Preço pago no mês ${row.month}`}
-                          className={`min-w-0 flex-1 h-6 rounded bg-slate-950 border ${
-                            row.pricePaidUSD > 0
-                              ? row.isPartial
-                                ? 'border-amber-500/45 text-amber-100'
-                                : 'border-emerald-500/40 text-emerald-100'
-                              : 'border-slate-800 text-slate-200'
-                          } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
-                        />
-                      </div>
+                            } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
+                          />
+                        </div>
+                      )}
 
                       {/* Linha 3 (compacta): Indicador de restante quando parcial */}
                       {row.isPartial && (
@@ -978,39 +1006,62 @@ export const DcaPlannerView: React.FC<DcaPlannerViewProps> = ({
 
                         <td className="py-1 px-2 whitespace-nowrap">
                           <div className="flex items-center gap-1">
-                            <NumericInput
-                              value={row.boughtQty}
-                              onValueChange={(val) =>
-                                onUpdateMonthlyRecordNumber(goal.id, row.index, 'boughtQty', val)
-                              }
-                              placeholder={row.plannedQty.toFixed(2)}
-                              decimalsOnBlur={4}
-                              ariaLabel={`Quantidade comprada no mês ${row.month}`}
-                              className={`w-[74px] h-6 rounded bg-slate-950 border ${
-                                row.isCompleted
-                                  ? 'border-emerald-500/40 text-emerald-100'
-                                  : row.isPartial
-                                    ? 'border-amber-500/45 text-amber-100'
-                                    : 'border-slate-800 text-slate-200'
-                              } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
-                            />
-                            <span className="text-[10px] text-slate-600">@</span>
-                            <NumericInput
-                              value={priceDisplayVal}
-                              onValueChange={(val) =>
-                                onUpdateMonthlyRecordNumber(goal.id, row.index, 'pricePaid', val)
-                              }
-                              placeholder={convertFromUSD(m.currentPriceUSD, state.currency, fxRate).toFixed(2)}
-                              decimalsOnBlur={4}
-                              ariaLabel={`Preço pago no mês ${row.month}`}
-                              className={`w-[72px] h-6 rounded bg-slate-950 border ${
-                                row.pricePaidUSD > 0
-                                  ? row.isPartial
-                                    ? 'border-amber-500/45 text-amber-100'
-                                    : 'border-emerald-500/40 text-emerald-100'
-                                  : 'border-slate-800 text-slate-200'
-                              } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
-                            />
+                            {row.entriesCount > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => setPartialModalMonthIndex(row.index)}
+                                title={`Mês com ${row.entriesCount} compras parciais — clique para ver, adicionar ou remover lotes`}
+                                className={`w-[162px] h-6 rounded bg-slate-950 border px-1.5 inline-flex items-center justify-between gap-1 text-[11px] font-mono transition-colors ${
+                                  row.isCompleted
+                                    ? 'border-emerald-500/40 text-emerald-100 hover:border-emerald-400'
+                                    : 'border-amber-500/45 text-amber-100 hover:border-amber-400'
+                                }`}
+                              >
+                                <span className="truncate font-bold">{formatCryptoQty(row.boughtQty)}</span>
+                                <span className="text-[10px] text-slate-500 shrink-0">@</span>
+                                <span className="truncate text-slate-300">
+                                  {formatEditableNumber(priceDisplayVal) || '0'}
+                                </span>
+                              </button>
+                            ) : (
+                              <>
+                                <NumericInput
+                                  value={row.boughtQty}
+                                  onValueChange={(val) =>
+                                    onUpdateMonthlyRecordNumber(goal.id, row.index, 'boughtQty', val)
+                                  }
+                                  placeholder={formatEditableNumber(row.plannedQty) || '0'}
+                                  decimalsOnBlur={8}
+                                  ariaLabel={`Quantidade comprada no mês ${row.month}`}
+                                  className={`w-[74px] h-6 rounded bg-slate-950 border ${
+                                    row.isCompleted
+                                      ? 'border-emerald-500/40 text-emerald-100'
+                                      : row.isPartial
+                                        ? 'border-amber-500/45 text-amber-100'
+                                        : 'border-slate-800 text-slate-200'
+                                  } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
+                                />
+                                <span className="text-[10px] text-slate-600">@</span>
+                                <NumericInput
+                                  value={priceDisplayVal}
+                                  onValueChange={(val) =>
+                                    onUpdateMonthlyRecordNumber(goal.id, row.index, 'pricePaid', val)
+                                  }
+                                  placeholder={
+                                    formatEditableNumber(convertFromUSD(m.currentPriceUSD, state.currency, fxRate)) || '0'
+                                  }
+                                  decimalsOnBlur={8}
+                                  ariaLabel={`Preço pago no mês ${row.month}`}
+                                  className={`w-[72px] h-6 rounded bg-slate-950 border ${
+                                    row.pricePaidUSD > 0
+                                      ? row.isPartial
+                                        ? 'border-amber-500/45 text-amber-100'
+                                        : 'border-emerald-500/40 text-emerald-100'
+                                      : 'border-slate-800 text-slate-200'
+                                  } px-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500`}
+                                />
+                              </>
+                            )}
                             <button
                               type="button"
                               title={

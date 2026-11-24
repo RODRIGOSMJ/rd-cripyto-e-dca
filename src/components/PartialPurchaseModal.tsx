@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { Calendar, CheckCircle2, Clock, Coins, Plus, Trash2, X } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertCircle, Calendar, CheckCircle2, Clock, Coins, DollarSign, Plus, Trash2, X } from 'lucide-react';
 import { CryptoGoal, CurrencyMode, ScheduleRow } from '../types';
 import {
   convertFromUSD,
   formatBRL,
   formatCryptoQty,
+  formatEditableNumber,
   formatMoney,
   formatUSDT,
-  getNormalizedMonthEntries
+  getNormalizedMonthEntries,
+  parseFlexibleNumber
 } from '../utils/calculations';
 import { CryptoLogo } from './CryptoLogo';
 
@@ -22,6 +24,8 @@ interface PartialPurchaseModalProps {
   onAddPartialPurchase: (goalId: string, monthIndex: number, qty: number, priceDisplay: number) => void;
   onRemovePartialPurchase: (goalId: string, monthIndex: number, entryId: string) => void;
 }
+
+type InputMode = 'QTY' | 'VALUE';
 
 function formatEntryDate(iso: string): string {
   try {
@@ -38,11 +42,6 @@ function formatEntryDate(iso: string): string {
   }
 }
 
-function formatInputNum(val: number, maxDecimals = 4): string {
-  if (!Number.isFinite(val) || val <= 0) return '';
-  return String(Number(val.toFixed(maxDecimals)));
-}
-
 export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
   isOpen,
   goal,
@@ -54,51 +53,132 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
   onAddPartialPurchase,
   onRemovePartialPurchase
 }) => {
+  const [inputMode, setInputMode] = useState<InputMode>('QTY');
   const [qtyStr, setQtyStr] = useState('');
+  const [spentStr, setSpentStr] = useState('');
   const [priceStr, setPriceStr] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [justAddedMsg, setJustAddedMsg] = useState<string | null>(null);
 
+  const priceEditedByUserRef = useRef(false);
   const currSymbol = currency === 'BRL' ? 'R$' : 'USDT';
   const livePriceDisplay = convertFromUSD(currentPriceUSD, currency, fxRate);
 
+  // Inicializa os campos somente ao abrir o modal ou trocar de mês/cripto
   useEffect(() => {
     if (!isOpen || !row) return;
-    // Sugere preencher o restante do mês (ou 50% se quiser editar rápido) e a cotação ao vivo
-    const suggestedQty = row.remainingMonthQty > 0 ? row.remainingMonthQty : row.plannedQty;
-    setQtyStr(formatInputNum(suggestedQty, 4));
-    setPriceStr(formatInputNum(livePriceDisplay, 4));
+    priceEditedByUserRef.current = false;
+    setFormError(null);
+    setJustAddedMsg(null);
+    setInputMode('QTY');
+
+    const suggestedQty = !row.isCompleted && row.remainingMonthQty > 1e-8 ? row.remainingMonthQty : row.plannedQty;
+    setQtyStr(formatEditableNumber(suggestedQty));
+    setSpentStr('');
+    setPriceStr(formatEditableNumber(livePriceDisplay));
   }, [isOpen, row?.index, goal.id]);
+
+  // Se a cotação ao vivo chegar depois da abertura (ou o usuário alternar moeda) e ainda não editou o preço, atualiza o campo de preço
+  useEffect(() => {
+    if (!isOpen || priceEditedByUserRef.current) return;
+    if (livePriceDisplay > 0 && !priceStr) {
+      setPriceStr(formatEditableNumber(livePriceDisplay));
+    }
+  }, [isOpen, livePriceDisplay, priceStr]);
 
   if (!isOpen || !row) return null;
 
   const rawRec = goal.monthlyRecords[row.index];
   const entries = rawRec ? getNormalizedMonthEntries(rawRec, fxRate) : row.entries;
 
-  const parsedQty = Math.max(0, parseFloat(qtyStr.replace(',', '.')) || 0);
-  const parsedPriceDisplay = Math.max(0, parseFloat(priceStr.replace(',', '.')) || 0);
+  const parsedPriceDisplay = Math.max(0, parseFlexibleNumber(priceStr));
+  const effectivePriceDisplay = parsedPriceDisplay > 0 ? parsedPriceDisplay : livePriceDisplay;
   const effectivePriceUSD =
-    parsedPriceDisplay > 0
+    effectivePriceDisplay > 0
       ? currency === 'BRL'
-        ? parsedPriceDisplay / fxRate
-        : parsedPriceDisplay
+        ? effectivePriceDisplay / fxRate
+        : effectivePriceDisplay
       : currentPriceUSD;
 
-  const previewLotUSD = parsedQty * effectivePriceUSD;
+  const parsedQtyInput = Math.max(0, parseFlexibleNumber(qtyStr));
+  const parsedSpentInput = Math.max(0, parseFlexibleNumber(spentStr));
+
+  // Quantidade efetiva a lançar (seja digitando direto em moedas ou em valor gasto)
+  const effectiveQty =
+    inputMode === 'QTY'
+      ? parsedQtyInput
+      : effectivePriceDisplay > 0
+        ? parsedSpentInput / effectivePriceDisplay
+        : 0;
+
+  const previewLotUSD = effectiveQty * effectivePriceUSD;
   const previewLotBRL = previewLotUSD * fxRate;
 
+  const hasRemaining = !row.isCompleted && row.remainingMonthQty > 1e-8;
   const monthProgressPct =
     row.plannedQty > 0 ? Math.min(100, (row.boughtQty / row.plannedQty) * 100) : row.boughtQty > 0 ? 100 : 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (parsedQty <= 0) return;
-    onAddPartialPurchase(goal.id, row.index, parsedQty, parsedPriceDisplay);
-    // Limpa o campo de quantidade para evitar clique duplo acidental
+    setFormError(null);
+    setJustAddedMsg(null);
+
+    if (inputMode === 'VALUE') {
+      if (parsedSpentInput <= 0) {
+        setFormError(`Informe o valor gasto em ${currSymbol} maior que zero.`);
+        return;
+      }
+      if (effectivePriceDisplay <= 0) {
+        setFormError(`Informe o preço unitário pago em ${currSymbol} para calcular a quantidade.`);
+        return;
+      }
+    }
+
+    if (!Number.isFinite(effectiveQty) || effectiveQty <= 0) {
+      setFormError(`Informe uma quantidade válida de ${goal.symbol} maior que zero.`);
+      return;
+    }
+
+    const finalQty = Number(effectiveQty.toFixed(8));
+    const finalPriceDisplay = effectivePriceDisplay > 0 ? effectivePriceDisplay : 0;
+
+    onAddPartialPurchase(goal.id, row.index, finalQty, finalPriceDisplay);
+
+    const remainingAfter = Math.max(0, row.plannedQty - (row.boughtQty + finalQty));
+    setJustAddedMsg(
+      remainingAfter > row.plannedQty * 0.0001
+        ? `+${formatCryptoQty(finalQty, goal.symbol)} lançado! Faltam ${formatCryptoQty(remainingAfter, goal.symbol)} neste mês.`
+        : `+${formatCryptoQty(finalQty, goal.symbol)} lançado! Meta do Mês ${row.month} concluída!`
+    );
+
+    // Limpa os campos de valor/quantidade para evitar lançamento duplicado acidental
     setQtyStr('');
+    setSpentStr('');
   };
 
   const applyQuickQty = (fraction: number) => {
-    const base = row.remainingMonthQty > 0 ? row.remainingMonthQty : row.plannedQty;
-    setQtyStr(formatInputNum(base * fraction, 4));
+    setFormError(null);
+    const baseQty = hasRemaining ? row.remainingMonthQty : row.plannedQty;
+    const targetQty = baseQty * fraction;
+    if (inputMode === 'QTY') {
+      setQtyStr(formatEditableNumber(targetQty));
+    } else {
+      const targetValDisplay = targetQty * effectivePriceDisplay;
+      setSpentStr(formatEditableNumber(targetValDisplay, 2));
+    }
+  };
+
+  const handleSwitchMode = (nextMode: InputMode) => {
+    setFormError(null);
+    if (nextMode === inputMode) return;
+    if (nextMode === 'VALUE') {
+      const estDisplay = parsedQtyInput * effectivePriceDisplay;
+      setSpentStr(estDisplay > 0 ? formatEditableNumber(estDisplay, 2) : '');
+    } else {
+      const estQty = effectivePriceDisplay > 0 ? parsedSpentInput / effectivePriceDisplay : 0;
+      setQtyStr(estQty > 0 ? formatEditableNumber(estQty) : '');
+    }
+    setInputMode(nextMode);
   };
 
   return (
@@ -172,7 +252,7 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
               <div>
                 <div className="text-[10px] text-slate-500">Falta no Mês</div>
                 <div className="font-mono font-bold text-white mt-0.5">
-                  {row.remainingMonthQty > 0.0001 ? (
+                  {hasRemaining ? (
                     <span className="text-amber-300">{formatCryptoQty(row.remainingMonthQty, goal.symbol)}</span>
                   ) : (
                     <span className="text-emerald-400">0 {goal.symbol}</span>
@@ -207,7 +287,7 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
                     </span>
                   )}
                 </span>
-                {row.remainingMonthQty > 0.0001 && (
+                {hasRemaining && (
                   <span className="font-mono text-sky-300">
                     Falta ≈ {formatUSDT(row.estimatedRemainingMonthCostUSD, 2)}{' '}
                     <span className="text-slate-500">
@@ -220,16 +300,34 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
           </div>
 
           {/* Formulário: Adicionar Novo Lote Parcial */}
-          <form onSubmit={handleSubmit} className="rounded-xl bg-[#180d11] border border-red-900/40 p-3.5 space-y-3">
+          <form onSubmit={handleSubmit} noValidate className="rounded-xl bg-[#180d11] border border-red-900/40 p-3.5 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="inline-flex items-center gap-1.5 text-xs font-extrabold text-white">
-                <Coins className="w-3.5 h-3.5 text-[#ff4d5a]" />
-                <span>Registrar Nova Compra Parcial</span>
+              <div className="inline-flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('QTY')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md font-bold transition-all ${
+                    inputMode === 'QTY' ? 'spfc-gradient-btn text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Coins className="w-3 h-3" />
+                  <span>Por Qtd ({goal.symbol})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchMode('VALUE')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md font-bold transition-all ${
+                    inputMode === 'VALUE' ? 'spfc-gradient-btn text-white' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <DollarSign className="w-3 h-3" />
+                  <span>Por Valor ({currSymbol})</span>
+                </button>
               </div>
 
               {/* Atalhos rápidos */}
               <div className="flex items-center gap-1">
-                {row.remainingMonthQty > 0.0001 && (
+                {hasRemaining && (
                   <button
                     type="button"
                     onClick={() => applyQuickQty(1)}
@@ -256,21 +354,43 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  Quantidade comprada agora ({goal.symbol})
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  value={qtyStr}
-                  onChange={(e) => setQtyStr(e.target.value)}
-                  placeholder="Ex: 200"
-                  required
-                  className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 focus:border-[#E11D2E] px-2.5 text-xs font-mono font-bold text-white focus:outline-none"
-                />
-              </div>
+              {inputMode === 'QTY' ? (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Quantidade comprada agora ({goal.symbol})
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={qtyStr}
+                    onChange={(e) => {
+                      setFormError(null);
+                      setJustAddedMsg(null);
+                      setQtyStr(e.target.value);
+                    }}
+                    placeholder={`Ex: ${formatEditableNumber(row.plannedQty * 0.5) || '200'}`}
+                    className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 focus:border-[#E11D2E] px-2.5 text-xs font-mono font-bold text-white focus:outline-none"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Valor total gasto agora ({currSymbol})
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={spentStr}
+                    onChange={(e) => {
+                      setFormError(null);
+                      setJustAddedMsg(null);
+                      setSpentStr(e.target.value);
+                    }}
+                    placeholder={currency === 'BRL' ? 'Ex: 250,00' : 'Ex: 50.00'}
+                    className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 focus:border-[#E11D2E] px-2.5 text-xs font-mono font-bold text-white focus:outline-none"
+                  />
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -279,34 +399,66 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
                   </label>
                   <button
                     type="button"
-                    onClick={() => setPriceStr(formatInputNum(livePriceDisplay, 4))}
+                    onClick={() => {
+                      priceEditedByUserRef.current = false;
+                      setPriceStr(formatEditableNumber(livePriceDisplay));
+                    }}
                     className="text-[10px] font-semibold text-emerald-400 hover:text-emerald-300"
                   >
                     Usar ao vivo
                   </button>
                 </div>
                 <input
-                  type="number"
-                  step="any"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={priceStr}
-                  onChange={(e) => setPriceStr(e.target.value)}
-                  placeholder={formatInputNum(livePriceDisplay, 4)}
+                  onChange={(e) => {
+                    priceEditedByUserRef.current = true;
+                    setFormError(null);
+                    setPriceStr(e.target.value);
+                  }}
+                  placeholder={formatEditableNumber(livePriceDisplay) || '0.00'}
                   className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 focus:border-[#E11D2E] px-2.5 text-xs font-mono font-bold text-white focus:outline-none"
                 />
               </div>
             </div>
 
+            {formError && (
+              <div className="flex items-center gap-1.5 rounded-lg bg-rose-950/60 border border-rose-500/40 px-2.5 py-1.5 text-[11px] text-rose-200">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            {justAddedMsg && (
+              <div className="flex items-center gap-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 px-2.5 py-1.5 text-[11px] text-emerald-200">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                <span>{justAddedMsg}</span>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <div className="text-[11px] tabular-nums">
-                <span className="text-slate-400">Valor deste lote: </span>
-                <strong className="font-mono text-emerald-400">{formatUSDT(previewLotUSD, 2)}</strong>
-                <span className="text-slate-500 font-mono"> (≈ {formatBRL(previewLotBRL, 2)})</span>
+                {inputMode === 'VALUE' ? (
+                  <>
+                    <span className="text-slate-400">Vai lançar: </span>
+                    <strong className="font-mono text-emerald-400">
+                      {formatCryptoQty(effectiveQty, goal.symbol)}
+                    </strong>
+                    <span className="text-slate-500 font-mono"> ({formatUSDT(previewLotUSD, 2)})</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-400">Valor deste lote: </span>
+                    <strong className="font-mono text-emerald-400">{formatUSDT(previewLotUSD, 2)}</strong>
+                    <span className="text-slate-500 font-mono"> (≈ {formatBRL(previewLotBRL, 2)})</span>
+                  </>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={parsedQty <= 0}
+                disabled={effectiveQty <= 0}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg spfc-gradient-btn disabled:opacity-40 text-white font-bold text-xs shadow-md shadow-red-950/50 transition-all"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -343,7 +495,7 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
                       className="px-3 py-2 flex items-center justify-between gap-2 text-xs tabular-nums hover:bg-slate-900/60 transition-colors"
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-mono font-bold text-slate-300">
                             #{idx + 1}
                           </span>
@@ -373,7 +525,10 @@ export const PartialPurchaseModal: React.FC<PartialPurchaseModalProps> = ({
 
                         <button
                           type="button"
-                          onClick={() => onRemovePartialPurchase(goal.id, row.index, entry.id)}
+                          onClick={() => {
+                            setJustAddedMsg(null);
+                            onRemovePartialPurchase(goal.id, row.index, entry.id);
+                          }}
                           title="Remover este lançamento parcial"
                           className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
                         >

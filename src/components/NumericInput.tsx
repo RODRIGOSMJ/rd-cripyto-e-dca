@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { formatEditableNumber, parseFlexibleNumber } from '../utils/calculations';
 
 interface NumericInputProps {
   value: number;
@@ -21,14 +22,13 @@ export const NumericInput: React.FC<NumericInputProps> = ({
 }) => {
   const formatVal = (v: number): string => {
     if (!showZero && (!v || v <= 0)) return '';
-    if (decimalsOnBlur !== null) {
-      return Number(v.toFixed(decimalsOnBlur)).toString();
-    }
-    return String(v);
+    if (showZero && (!v || v <= 0)) return '0';
+    return formatEditableNumber(v, decimalsOnBlur ?? undefined);
   };
 
   const [isFocused, setIsFocused] = useState(false);
   const [text, setText] = useState<string>(() => formatVal(value));
+  const hasEditedRef = useRef(false);
 
   useEffect(() => {
     if (!isFocused) {
@@ -38,6 +38,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
+    hasEditedRef.current = true;
     setText(raw);
 
     if (raw.trim() === '') {
@@ -45,18 +46,23 @@ export const NumericInput: React.FC<NumericInputProps> = ({
       return;
     }
 
-    const normalized = raw.replace(',', '.');
-    const parsed = parseFloat(normalized);
-    if (!Number.isNaN(parsed) && parsed >= 0) {
+    const parsed = parseFlexibleNumber(raw);
+    if (Number.isFinite(parsed) && parsed >= 0) {
       onValueChange(parsed);
     }
   };
 
   const handleBlur = () => {
     setIsFocused(false);
-    const normalized = text.replace(',', '.');
-    const parsed = parseFloat(normalized);
-    if (Number.isNaN(parsed) || parsed <= 0) {
+    if (!hasEditedRef.current) {
+      // Não dispara alteração se o usuário apenas clicou e saiu sem editar
+      setText(formatVal(value));
+      return;
+    }
+    hasEditedRef.current = false;
+
+    const parsed = parseFlexibleNumber(text);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
       onValueChange(0);
       setText(showZero ? '0' : '');
     } else {
@@ -72,7 +78,10 @@ export const NumericInput: React.FC<NumericInputProps> = ({
       aria-label={ariaLabel}
       value={text}
       placeholder={placeholder}
-      onFocus={() => setIsFocused(true)}
+      onFocus={() => {
+        hasEditedRef.current = false;
+        setIsFocused(true);
+      }}
       onChange={handleChange}
       onBlur={handleBlur}
       onKeyDown={(e) => {
@@ -84,3 +93,4 @@ export const NumericInput: React.FC<NumericInputProps> = ({
     />
   );
 };
+

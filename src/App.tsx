@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardList, ArrowRightLeft, PieChart, Plus } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
@@ -30,6 +30,13 @@ import {
   summarizeMonthlyEntries
 } from './utils/calculations';
 import { subscribeLiveBinanceStream, syncLivePrices } from './utils/priceService';
+import {
+  FearGreedApiPayload,
+  Ticker24hStats,
+  computeRealtimeSentimentSummary,
+  fetchFearGreedIndex,
+  fetchMarket24hStats
+} from './utils/fearGreedService';
 import { downloadCSVReport, downloadJSONBackup } from './utils/exportUtils';
 import {
   CloudGoalsSnapshotResult,
@@ -39,6 +46,7 @@ import {
 } from './utils/cloudSync';
 import { CloudSyncStatus, Header } from './components/Header';
 import { GlobalKPIs } from './components/GlobalKPIs';
+import { FearGreedThermometer } from './components/FearGreedThermometer';
 import { DcaPlannerView } from './components/DcaPlannerView';
 import { ConverterView } from './components/ConverterView';
 import { ChartsRetirementView } from './components/ChartsRetirementView';
@@ -76,6 +84,12 @@ export default function App() {
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
   const [preselectSymbol, setPreselectSymbol] = useState<string | null>(null);
   const [aiReportOpen, setAiReportOpen] = useState(false);
+
+  // Termômetro de Medo e Ganância em Tempo Real
+  const [fgPayload, setFgPayload] = useState<FearGreedApiPayload | null>(null);
+  const [market24hStats, setMarket24hStats] = useState<Record<string, Ticker24hStats>>({});
+  const [fgLoading, setFgLoading] = useState(true);
+  const [fgError, setFgError] = useState<string | null>(null);
 
   // Modal Confirmação
   const [confirmState, setConfirmState] = useState<{
@@ -502,11 +516,50 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, [handleRefreshPrices]);
 
-  // Stream WebSocket em tempo real (tick-a-tick) para todas as criptos e Dólar (USDT/BRL)
+  const handleRefreshSentiment = useCallback(
+    async (manualTrigger = false) => {
+      setFgLoading(true);
+      try {
+        const [fgRes, statsRes] = await Promise.allSettled([
+          fetchFearGreedIndex(),
+          fetchMarket24hStats(stateRef.current.goals)
+        ]);
+
+        if (fgRes.status === 'fulfilled') {
+          setFgPayload(fgRes.value);
+          setFgError(null);
+        } else {
+          setFgError('Não foi possível consultar o Índice de Medo e Ganância agora.');
+          if (manualTrigger) {
+            showToast('Não foi possível atualizar o índice Fear & Greed agora.', 'error');
+          }
+        }
+
+        if (statsRes.status === 'fulfilled' && Object.keys(statsRes.value).length > 0) {
+          setMarket24hStats(statsRes.value);
+        }
+      } finally {
+        setFgLoading(false);
+      }
+    },
+    [showToast]
+  );
+
+  // Sincronização periódica do Termômetro de Medo e Ganância + estatísticas 24h (a cada 60s)
   const goalSymbolsKey = state.goals
     .map((g) => g.symbol.toUpperCase())
     .sort()
     .join(',');
+
+  useEffect(() => {
+    void handleRefreshSentiment(false);
+    const sentimentInterval = setInterval(() => {
+      void handleRefreshSentiment(false);
+    }, 60_000);
+    return () => clearInterval(sentimentInterval);
+  }, [handleRefreshSentiment, goalSymbolsKey]);
+
+  // Stream WebSocket em tempo real (tick-a-tick) para todas as criptos e Dólar (USDT/BRL)
 
   useEffect(() => {
     const unsubscribe = subscribeLiveBinanceStream(stateRef.current.goals, {
@@ -1239,6 +1292,17 @@ export default function App() {
   const editingGoal = editingGoalId ? state.goals.find((g) => g.id === editingGoalId) || null : null;
   const fxRate = getEffectiveUsdtBrlRate(state);
 
+  const sentimentSummary = useMemo(() => {
+    if (!fgPayload) return null;
+    return computeRealtimeSentimentSummary(
+      fgPayload,
+      market24hStats,
+      state.goals,
+      state.pricesUSD,
+      fxRate
+    );
+  }, [fgPayload, market24hStats, state.goals, state.pricesUSD, fxRate]);
+
   const navTabs: Array<{ id: MainTab; label: string; badge: string | null; icon: React.ReactNode }> = [
     {
       id: 'DCA',
@@ -1272,7 +1336,10 @@ export default function App() {
         onSignOutGoogle={handleSignOutGoogle}
         onManualCloudSync={handleManualCloudSync}
         onSetCurrency={handleSetCurrency}
-        onRefreshPrices={() => handleRefreshPrices(true)}
+        onRefreshPrices={() => {
+          void handleRefreshPrices(true);
+          void handleRefreshSentiment(false);
+        }}
         onExportCSV={handleExportCSV}
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
@@ -1284,6 +1351,14 @@ export default function App() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-5">
         <GlobalKPIs state={state} onUpdateRetirementGoal={handleUpdateRetirementGoal} />
+
+        <FearGreedThermometer
+          summary={sentimentSummary}
+          loading={fgLoading}
+          error={fgError}
+          isLiveConnected={state.isLiveConnected}
+          onRefresh={() => void handleRefreshSentiment(true)}
+        />
 
         {/* Navegação Principal */}
         <section className="flex flex-wrap items-center justify-between gap-3 border-b border-red-950/60 pb-3">

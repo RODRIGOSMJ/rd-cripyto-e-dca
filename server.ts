@@ -160,9 +160,58 @@ async function generateReportWithFallback(promptPayload: string) {
 
 const reportCache = new Map<string, { expiresAt: number; payload: { generatedAt: string; modelUsed: string; report: unknown } }>();
 
+interface FearGreedApiEntry {
+  value?: string;
+  value_classification?: string;
+  timestamp?: string;
+  time_until_update?: string;
+}
+
+let fearGreedCache: { expiresAt: number; payload: unknown } | null = null;
+
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
+
+  app.get('/api/fear-greed', async (_req, res) => {
+    try {
+      if (fearGreedCache && fearGreedCache.expiresAt > Date.now()) {
+        res.json(fearGreedCache.payload);
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4500);
+      const upstream = await fetch('https://api.alternative.me/fng/?limit=8&format=json', {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' }
+      });
+      clearTimeout(timeout);
+
+      if (!upstream.ok) {
+        throw new Error(`HTTP ${upstream.status}`);
+      }
+
+      const json = (await upstream.json()) as { data?: FearGreedApiEntry[] };
+      const list = Array.isArray(json?.data) ? json.data : [];
+      if (list.length === 0) {
+        throw new Error('Resposta vazia do índice Fear & Greed.');
+      }
+
+      const payload = {
+        source: 'Alternative.me',
+        fetchedAt: new Date().toISOString(),
+        data: list
+      };
+
+      fearGreedCache = { expiresAt: Date.now() + 60_000, payload };
+      res.json(payload);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[api/fear-greed] Fetch failed:', msg);
+      res.status(502).json({ error: 'Não foi possível consultar o Índice de Medo e Ganância agora.' });
+    }
+  });
 
   app.post('/api/ai-report', async (req, res) => {
     try {

@@ -75,7 +75,7 @@ export function normalizeLoadedState(parsed: Partial<AppState> | null | undefine
   const currency = parsed.currency && ['USDT', 'HYBRID', 'BRL'].includes(parsed.currency)
     ? parsed.currency
     : 'USDT';
-  const mainTab = parsed.mainTab && ['DCA', 'CONVERTER', 'CHARTS'].includes(parsed.mainTab)
+  const mainTab = parsed.mainTab && ['DCA', 'ALLOCATION', 'CONVERTER', 'CHARTS'].includes(parsed.mainTab)
     ? parsed.mainTab
     : 'DCA';
   const usdtBrlRate = Number(parsed.usdtBrlRate) > 0 ? Number(parsed.usdtBrlRate) : 5.85;

@@ -1,5 +1,5 @@
 export type CurrencyMode = 'USDT' | 'HYBRID' | 'BRL';
-export type MainTab = 'DCA' | 'CONVERTER' | 'CHARTS';
+export type MainTab = 'DCA' | 'ALLOCATION' | 'CONVERTER' | 'CHARTS';
 export type ConverterDirection = 'BRL_TO_USDT' | 'USDT_TO_BRL';
 
 export interface CryptoAsset {

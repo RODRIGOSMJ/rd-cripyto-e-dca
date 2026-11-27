@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, Thermometer, TrendingDown, TrendingUp } from 'lucide-react';
+import { Eye, EyeOff, RefreshCw, Thermometer, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   RealtimeSentimentSummary,
   classifySentimentScore
@@ -10,6 +10,8 @@ interface FearGreedThermometerProps {
   loading: boolean;
   error: string | null;
   isLiveConnected: boolean;
+  isOpen: boolean;
+  onToggleOpen: () => void;
   onRefresh: () => void;
 }
 
@@ -63,6 +65,8 @@ export const FearGreedThermometer: React.FC<FearGreedThermometerProps> = ({
   loading,
   error,
   isLiveConnected,
+  isOpen,
+  onToggleOpen,
   onRefresh
 }) => {
   const [mode, setMode] = useState<ThermometerMode>('REALTIME');
@@ -73,19 +77,82 @@ export const FearGreedThermometer: React.FC<FearGreedThermometerProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  if (!isOpen) {
+    const quickScore = summary ? (mode === 'REALTIME' ? summary.realtimeScore : summary.officialScore) : null;
+    const quickMeta = quickScore !== null ? classifySentimentScore(quickScore) : null;
+
+    return (
+      <section
+        aria-label="Termômetro de Medo e Ganância recolhido"
+        className="rounded-xl bg-[#120b0e]/85 border border-slate-800/80 px-4 py-2 flex flex-wrap items-center justify-between gap-2"
+      >
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-300 tabular-nums min-w-0">
+          <Thermometer className="w-3.5 h-3.5 text-[#ff4d5a] shrink-0" />
+          <span className="font-bold text-white whitespace-nowrap">Termômetro Medo &amp; Ganância</span>
+          {summary && quickScore !== null && quickMeta ? (
+            <>
+              <span aria-hidden="true" className="text-slate-600">·</span>
+              <span className={`font-mono font-bold whitespace-nowrap ${quickMeta.textClass}`}>
+                {quickScore}/100 ({quickMeta.labelPt})
+              </span>
+              {summary.portfolioChange24hPct !== null && (
+                <>
+                  <span aria-hidden="true" className="text-slate-600 hidden sm:inline">·</span>
+                  <span className="text-slate-400 hidden sm:inline whitespace-nowrap">
+                    Carteira 24h:{' '}
+                    <strong
+                      className={`font-mono ${
+                        summary.portfolioChange24hPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {formatSignedPct(summary.portfolioChange24hPct)}
+                    </strong>
+                  </span>
+                </>
+              )}
+            </>
+          ) : (
+            <span className="text-slate-500 text-[11px]">
+              {loading ? 'Sincronizando...' : 'Recolhido'}
+            </span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleOpen}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/90 text-[11px] font-bold text-slate-200 hover:text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+        >
+          <Eye className="w-3.5 h-3.5 text-[#ff4d5a]" />
+          <span>Mostrar Termômetro</span>
+        </button>
+      </section>
+    );
+  }
+
   if (loading && !summary) {
     return (
       <section
         aria-label="Termômetro de Medo e Ganância"
         className="rounded-xl bg-[#120b0e]/95 border border-slate-800/90 px-4 py-4 sm:px-5 animate-pulse motion-reduce:animate-none"
       >
-        <div className="flex flex-col lg:flex-row lg:items-center gap-5">
-          <div className="w-44 h-24 rounded-lg bg-slate-900/80 shrink-0" />
-          <div className="flex-1 space-y-2.5">
-            <div className="h-4 w-56 rounded bg-slate-900/80" />
-            <div className="h-2.5 w-full rounded bg-slate-900/80" />
-            <div className="h-3.5 w-3/4 rounded bg-slate-900/80" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="flex items-center gap-5 flex-1">
+            <div className="w-44 h-24 rounded-lg bg-slate-900/80 shrink-0" />
+            <div className="flex-1 space-y-2.5">
+              <div className="h-4 w-56 rounded bg-slate-900/80" />
+              <div className="h-2.5 w-full rounded bg-slate-900/80" />
+              <div className="h-3.5 w-3/4 rounded bg-slate-900/80" />
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={onToggleOpen}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-bold text-slate-300 hover:text-white self-start shrink-0"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+            <span>Ocultar</span>
+          </button>
         </div>
       </section>
     );
@@ -101,14 +168,24 @@ export const FearGreedThermometer: React.FC<FearGreedThermometerProps> = ({
           <Thermometer className="w-4 h-4 text-[#ff4d5a] shrink-0" />
           <span>{error || 'Não foi possível carregar o Termômetro de Medo e Ganância agora.'}</span>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Tentar novamente</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Tentar novamente</span>
+          </button>
+          <button
+            type="button"
+            onClick={onToggleOpen}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+            <span>Ocultar</span>
+          </button>
+        </div>
       </section>
     );
   }
@@ -282,6 +359,17 @@ export const FearGreedThermometer: React.FC<FearGreedThermometerProps> = ({
                 className="p-2 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={onToggleOpen}
+                title="Ocultar termômetro para deixar a tela mais compacta"
+                aria-label="Ocultar Termômetro de Medo e Ganância"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-300 hover:text-white transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              >
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Ocultar</span>
               </button>
             </div>
           </div>

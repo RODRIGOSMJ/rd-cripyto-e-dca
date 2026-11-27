@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, ArrowRightLeft, PieChart, Plus } from 'lucide-react';
+import { ClipboardList, ArrowRightLeft, PieChart, Plus, TrendingUp } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import {
@@ -18,7 +18,7 @@ import {
   getFutureMonthLabel,
   migrateGoalStartToDecember
 } from './constants';
-import { loadState, normalizeLoadedState, saveState } from './utils/storage';
+import { SafeStorage, loadState, normalizeLoadedState, saveState } from './utils/storage';
 import {
   calculateConverterResults,
   calculateGoalMetrics,
@@ -47,6 +47,7 @@ import {
 import { CloudSyncStatus, Header } from './components/Header';
 import { GlobalKPIs } from './components/GlobalKPIs';
 import { FearGreedThermometer } from './components/FearGreedThermometer';
+import { PortfolioAllocationView } from './components/PortfolioAllocationView';
 import { DcaPlannerView } from './components/DcaPlannerView';
 import { ConverterView } from './components/ConverterView';
 import { ChartsRetirementView } from './components/ChartsRetirementView';
@@ -85,11 +86,14 @@ export default function App() {
   const [preselectSymbol, setPreselectSymbol] = useState<string | null>(null);
   const [aiReportOpen, setAiReportOpen] = useState(false);
 
-  // Termômetro de Medo e Ganância em Tempo Real
+  // Termômetro de Medo e Ganância em Tempo Real (opção de mostrar/ocultar salva localmente)
   const [fgPayload, setFgPayload] = useState<FearGreedApiPayload | null>(null);
   const [market24hStats, setMarket24hStats] = useState<Record<string, Ticker24hStats>>({});
   const [fgLoading, setFgLoading] = useState(true);
   const [fgError, setFgError] = useState<string | null>(null);
+  const [showThermometer, setShowThermometer] = useState<boolean>(() => {
+    return SafeStorage.getItem('rg_crypto_show_thermometer_v1') !== 'false';
+  });
 
   // Modal Confirmação
   const [confirmState, setConfirmState] = useState<{
@@ -1303,12 +1307,26 @@ export default function App() {
     );
   }, [fgPayload, market24hStats, state.goals, state.pricesUSD, fxRate]);
 
+  const handleToggleThermometer = useCallback(() => {
+    setShowThermometer((prev) => {
+      const next = !prev;
+      SafeStorage.setItem('rg_crypto_show_thermometer_v1', String(next));
+      return next;
+    });
+  }, []);
+
   const navTabs: Array<{ id: MainTab; label: string; badge: string | null; icon: React.ReactNode }> = [
     {
       id: 'DCA',
       label: 'Planejador DCA',
       badge: String(state.goals.length),
       icon: <ClipboardList className="w-4 h-4" />
+    },
+    {
+      id: 'ALLOCATION',
+      label: 'Divisão da Carteira',
+      badge: null,
+      icon: <PieChart className="w-4 h-4" />
     },
     {
       id: 'CONVERTER',
@@ -1318,9 +1336,9 @@ export default function App() {
     },
     {
       id: 'CHARTS',
-      label: 'Simulador & Portfólio',
+      label: 'Simulador & Aposentadoria',
       badge: null,
-      icon: <PieChart className="w-4 h-4" />
+      icon: <TrendingUp className="w-4 h-4" />
     }
   ];
 
@@ -1357,6 +1375,8 @@ export default function App() {
           loading={fgLoading}
           error={fgError}
           isLiveConnected={state.isLiveConnected}
+          isOpen={showThermometer}
+          onToggleOpen={handleToggleThermometer}
           onRefresh={() => void handleRefreshSentiment(true)}
         />
 
@@ -1418,6 +1438,20 @@ export default function App() {
               onAutoFillNextEmptyMonth={handleAutoFillNextEmptyMonth}
               onGoToConverter={() => handleSelectMainTab('CONVERTER')}
               onSendMonthlyUsdToConverter={handleSendMonthlyUsdToConverter}
+            />
+          )}
+
+          {state.mainTab === 'ALLOCATION' && (
+            <PortfolioAllocationView
+              state={state}
+              onOpenGoalInPlanner={(goalId) => {
+                updateAndPersist((prev) => ({
+                  ...prev,
+                  selectedGoalId: goalId,
+                  mainTab: 'DCA'
+                }));
+              }}
+              onOpenNewGoalModal={() => handleOpenGoalModal()}
             />
           )}
 
